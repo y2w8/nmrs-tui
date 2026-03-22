@@ -4,9 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-anyhow = "1.0.100"
+anyhow = "1.0.102"
 crossterm = "0.29.0"
 ratatui = "0.30.0"
 serde = "1.0.228"
-tokio = { version = "1.49.0", features = ["rt-multi-thread", "macros"] }
-zbus = "5.13.1"
+tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
+nmrs = "2.2.0"
+zbus = "5.14.0"
+log = "0.4.29"
