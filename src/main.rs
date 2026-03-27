@@ -6,23 +6,35 @@ extern crate simplelog;
 
 mod app;
 mod logger;
+mod network;
 mod tui;
 mod ui;
-mod nm;
 
-use tui::Tui;
 use app::App;
+use crossterm::ExecutableCommand;
+use crossterm::terminal::{self, enable_raw_mode};
+use ratatui::{Terminal, prelude::CrosstermBackend};
+use tui::Tui;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    // Initialize app state
-    let mut app = App::new().await?;
-    let mut tui = Tui::new()?;
     // Initialize
     logger::init()?;
+    let mut network_manager = network::Manager::new().await?;
+    let mut app = App::new(&mut network_manager).await?;
+    let mut tui = Tui::new(&mut app)?;
+
+    let mut stdout = stdout();
+    enable_raw_mode()?;
+    stdout
+        .execute(terminal::EnterAlternateScreen)?
+        .execute(terminal::Clear(terminal::ClearType::All))?;
+
+    let backend = CrosstermBackend::new(stdout);
+    let terminal = Terminal::new(backend)?;
 
     // Start TUI
-    tui.run(&mut app).await?;
+    tui.run(&mut app, terminal).await?;
 
     Ok(())
 }

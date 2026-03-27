@@ -1,30 +1,75 @@
+use crate::{
+    network, ui::list::StatefulList
+};
 use anyhow::Result;
-use crate::{nm::client::NmClient, ui::list::StatefulList};
+use nmrs::Network;
 
-pub struct App {
-    pub nm: NmClient,
+#[derive(PartialEq)]
+pub enum InputMode {
+    Normal,
+    Editing,
+}
+
+pub struct App<'a> {
     pub should_quit: bool,
-    pub networks: StatefulList<String>,
+    pub network_manager: &'a mut network::Manager,
 
-    pub tab: Tabs,
+    pub devices: StatefulList<nmrs::Device>,
+    pub known_networks: StatefulList<Network>,
+    pub new_networks: StatefulList<Network>,
+
+    pub input_mode: InputMode,
+    pub password_input: String,
 }
 
-pub enum Tabs {
-    KnownNetworks,
-    NewNetworks,
-    Device,
-}
-impl App {
-    pub async fn new() -> Result<Self> {
-        let nm = NmClient::new().await?;
+impl<'a> App<'a> {
+    pub async fn new(network_manager: &'a mut network::Manager) -> Result<Self> {
+        let known_networks = network_manager.get_saved_networks().await.unwrap_or_default();
+        let scaned_networks = network_manager.get_wifi_scan().await.unwrap_or_default();
+        let device_list = network_manager.get_devices().await.unwrap_or_default();
+
+
+        let mut known_networks_list = Vec::new();
+        let mut available_networks_list = Vec::new();
+
+        for network in &scaned_networks {
+            if known_networks.contains(&network.ssid) {
+                known_networks_list.push(network.clone());
+            } else {
+                available_networks_list.push(network.clone());
+            }
+        }
 
         Ok(Self {
-            nm,
             should_quit: false,
-            networks: StatefulList::with_items(vec!["dwadwa".to_string(), "dwddwadwawa".to_string()]),
+            network_manager,
 
-            tab: Tabs::KnownNetworks,
+            devices: StatefulList::with_items(device_list),
+            known_networks: StatefulList::with_items(known_networks_list),
+            new_networks: StatefulList::with_items(available_networks_list),
+
+            input_mode: InputMode::Normal,
+            password_input: "".to_string(),
         })
+    }
+
+    pub async fn scan_networks(&mut self) -> anyhow::Result<()> {
+        let known_names = self.network_manager.get_saved_networks().await.unwrap_or_default();
+        let scan_list = self.network_manager.get_wifi_scan().await.unwrap_or_default();
+
+        let mut known_final = Vec::new();
+        let mut new_final = Vec::new();
+
+        for net in &scan_list {
+            if known_names.contains(&net.ssid) {
+                known_final.push(net.clone());
+            } else {
+                new_final.push(net.clone());
+            }
+        }
+        self.known_networks.items = known_final;
+        self.new_networks.items = new_final;
+        Ok(())
     }
 
     pub fn quit(&mut self) {
