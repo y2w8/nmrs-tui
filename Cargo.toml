@@ -12,3 +12,5 @@ tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
 nmrs = "2.2.0"
 zbus = "5.14.0"
 log = "0.4.29"
+simplelog = "0.12.2"
+dirs = "6.0.0"
