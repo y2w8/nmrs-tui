@@ -5,6 +5,7 @@ use std::io::stdout;
 extern crate simplelog;
 
 mod app;
+mod events;
 mod logger;
 mod network;
 mod tui;
@@ -20,8 +21,8 @@ use tui::Tui;
 async fn main() -> Result<()> {
     // Initialize
     logger::init()?;
-    let mut network_manager = network::Manager::new().await?;
-    let mut app = App::new(&mut network_manager).await?;
+    let network_manager = network::Manager::new().await?;
+    let mut app = App::new(network_manager).await?;
     let mut tui = Tui::new(&mut app)?;
 
     let mut stdout = stdout();

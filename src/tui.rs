@@ -1,7 +1,7 @@
 use anyhow::{Ok, Result};
 use crossterm::{
     ExecutableCommand,
-    event::{self, Event, KeyCode},
+    event::{self, Event},
     terminal::{self, disable_raw_mode, enable_raw_mode},
 };
 use nmrs::Network;
@@ -12,14 +12,13 @@ use ratatui::{
     widgets::Cell,
 };
 use ratatui::{layout::Rect, widgets::Row};
-use std::{io::stdout, rc::Rc};
+use std::{io::stdout, rc::Rc, time::Duration};
 
 use crate::{
-    app::{App, InputMode},
-    ui::{
+    app::{App, InputMode}, events, ui::{
         list::StatefulList,
         table::{self, TableData},
-    },
+    }
 };
 
 #[derive(PartialEq)]
@@ -64,7 +63,7 @@ impl<'a> Tui {
         })
     }
 
-    fn selected_network(list: &StatefulList<Network>) -> Option<Network> {
+    pub fn selected_network(list: &StatefulList<Network>) -> Option<Network> {
         list.state
             .selected()
             .and_then(|index| list.items.get(index))
@@ -73,11 +72,23 @@ impl<'a> Tui {
 
     pub async fn run(
         &mut self,
-        app: &mut App<'a>,
+        app: &mut App,
         mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
+
+        let mut last_tick = tokio::time::Instant::now();
+        let tick_rate = Duration::from_secs(3);
+
         while !app.should_quit {
+            if last_tick.elapsed() >= tick_rate {
+                if let Err(e) = app.scan_networks().await {
+                    eprintln!("scan error: {:?}", e);
+                }
+                last_tick = tokio::time::Instant::now();
+            }
             terminal.draw(|f| {
+
+
                 let size = f.area();
 
                 let main_chunks = Layout::default()
@@ -136,81 +147,7 @@ impl<'a> Tui {
             if event::poll(std::time::Duration::from_millis(200))?
                 && let Event::Key(key) = event::read()?
             {
-                match app.input_mode {
-                    InputMode::Normal => match key.code {
-                        KeyCode::Char('q') => app.quit(),
-                        KeyCode::Tab | KeyCode::Char('l') => {
-                            self.active_tab = match self.active_tab {
-                                Tabs::KnownNetworks => Tabs::AvailableNetworks,
-                                Tabs::AvailableNetworks => Tabs::Devices,
-                                Tabs::Devices => Tabs::KnownNetworks,
-                            };
-                        }
-                        KeyCode::BackTab | KeyCode::Char('h') => {
-                            self.active_tab = match self.active_tab {
-                                Tabs::KnownNetworks => Tabs::Devices,
-                                Tabs::AvailableNetworks => Tabs::KnownNetworks,
-                                Tabs::Devices => Tabs::AvailableNetworks,
-                            };
-                        }
-                        KeyCode::Char('j') | KeyCode::Down => match self.active_tab {
-                            Tabs::Devices => app.devices.next(),
-                            Tabs::AvailableNetworks => app.new_networks.next(),
-                            Tabs::KnownNetworks => app.known_networks.next(),
-                        },
-                        KeyCode::Char('k') | KeyCode::Up => match self.active_tab {
-                            Tabs::Devices => app.devices.previous(),
-                            Tabs::AvailableNetworks => app.new_networks.previous(),
-                            Tabs::KnownNetworks => app.known_networks.previous(),
-                        },
-                        KeyCode::Char('r') => match self.active_tab {
-                            Tabs::AvailableNetworks | Tabs::KnownNetworks => app.scan_networks().await?,
-                            _ => {}
-                        }
-                        KeyCode::Enter => {
-                            if self.active_tab == Tabs::AvailableNetworks
-                                && let Some(network) = Self::selected_network(&app.new_networks)
-                            {
-                                self.selected_network = Some(network.clone());
-                                if network.is_psk {
-                                    app.password_input.clear();
-                                    app.input_mode = InputMode::Editing
-                                }
-                            }
-                        }
-                        KeyCode::Char('f') => {
-                            if self.active_tab == Tabs::KnownNetworks {
-                                self.selected_network = Self::selected_network(&app.known_networks);
-                                app.network_manager
-                                    .forget(&self.selected_network.clone().unwrap().ssid)
-                                    .await?;
-                            }
-                        }
-                        _ => {}
-                    },
-                    InputMode::Editing => match key.code {
-                        KeyCode::Enter => {
-                            app.input_mode = InputMode::Normal;
-                            app.network_manager
-                                .connect(
-                                    &self.selected_network.clone().unwrap().ssid,
-                                    &app.password_input,
-                                )
-                                .await?;
-                            app.password_input.clear();
-                        }
-                        KeyCode::Esc => {
-                            app.input_mode = InputMode::Normal;
-                        }
-                        KeyCode::Char(c) => {
-                            app.password_input.push(c);
-                        }
-                        KeyCode::Backspace => {
-                            app.password_input.pop();
-                        }
-                        _ => {}
-                    },
-                }
+                events::handle_events(app, self, key).await?;
             }
         }
 
@@ -219,7 +156,7 @@ impl<'a> Tui {
     }
 
     fn render_password_popup(&self, f: &mut ratatui::Frame, app: &App) {
-        let area = self.centered_rect(50, 3, f.area()); // Height 3 is perfect for one line + border
+        let area = self.centered_rect(50, 3, f.area()); // Height 3 for one line + borders
         f.render_widget(ratatui::widgets::Clear, area); // Clear the table behind it
 
         // Hide password with asterisks for security
@@ -270,7 +207,7 @@ impl<'a> Tui {
         Ok(())
     }
 
-    fn render_all_tables(&self, f: &mut Frame, body_chunks: Rc<[Rect]>, app: &mut App<'a>) {
+    fn render_all_tables(&self, f: &mut Frame<'_>, body_chunks: Rc<[Rect]>, app: &mut App) {
         let rows: Vec<Row> = app
             .known_networks
             .items
@@ -279,7 +216,7 @@ impl<'a> Tui {
                 Row::new(vec![
                     Cell::from(net.ssid.clone()),
                     Cell::from(if net.secured { "Secured" } else { "Open" }),
-                    Cell::from(if app.network_manager.is_connected(&net.ssid) {
+                    Cell::from(if app.network_manager.is_connected_cached(&net.ssid) {
                         "Connected"
                     } else {
                         "-"

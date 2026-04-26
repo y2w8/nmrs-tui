@@ -10,9 +10,9 @@ pub enum InputMode {
     Editing,
 }
 
-pub struct App<'a> {
+pub struct App {
     pub should_quit: bool,
-    pub network_manager: &'a mut network::Manager,
+    pub network_manager: network::Manager,
 
     pub devices: StatefulList<nmrs::Device>,
     pub known_networks: StatefulList<Network>,
@@ -22,9 +22,8 @@ pub struct App<'a> {
     pub password_input: String,
 }
 
-impl<'a> App<'a> {
-    pub async fn new(network_manager: &'a mut network::Manager) -> Result<Self> {
-        let known_networks = network_manager.get_saved_networks().await.unwrap_or_default();
+impl App {
+    pub async fn new(mut network_manager: network::Manager) -> Result<Self> {
         let scaned_networks = network_manager.get_wifi_scan().await.unwrap_or_default();
         let device_list = network_manager.get_devices().await.unwrap_or_default();
 
@@ -33,7 +32,7 @@ impl<'a> App<'a> {
         let mut available_networks_list = Vec::new();
 
         for network in &scaned_networks {
-            if known_networks.contains(&network.ssid) {
+            if network_manager.has_saved_connection(&network.ssid).await? {
                 known_networks_list.push(network.clone());
             } else {
                 available_networks_list.push(network.clone());
@@ -54,14 +53,14 @@ impl<'a> App<'a> {
     }
 
     pub async fn scan_networks(&mut self) -> anyhow::Result<()> {
-        let known_names = self.network_manager.get_saved_networks().await.unwrap_or_default();
+        // let known_names = self.network_manager.get_saved_networks().await.unwrap_or_default();
         let scan_list = self.network_manager.get_wifi_scan().await.unwrap_or_default();
 
         let mut known_final = Vec::new();
         let mut new_final = Vec::new();
 
         for net in &scan_list {
-            if known_names.contains(&net.ssid) {
+            if self.network_manager.has_saved_connection(&net.ssid).await? {
                 known_final.push(net.clone());
             } else {
                 new_final.push(net.clone());
