@@ -5,8 +5,9 @@ use std::io::stdout;
 extern crate simplelog;
 
 mod app;
+mod events;
 mod logger;
-mod network;
+mod network_manager;
 mod tui;
 mod ui;
 
@@ -16,12 +17,14 @@ use crossterm::terminal::{self, enable_raw_mode};
 use ratatui::{Terminal, prelude::CrosstermBackend};
 use tui::Tui;
 
+use crate::network_manager::NetworkManager;
+
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize
     logger::init()?;
-    let mut network_manager = network::Manager::new().await?;
-    let mut app = App::new(&mut network_manager).await?;
+    let network_manager = NetworkManager::new().await?;
+    let mut app = App::new(network_manager).await?;
     let mut tui = Tui::new(&mut app)?;
 
     let mut stdout = stdout();

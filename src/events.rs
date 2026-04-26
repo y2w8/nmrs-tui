@@ -29,37 +29,43 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
             }
             KeyCode::Char('j') | KeyCode::Down => match tui.active_tab {
                 Tabs::Devices => app.devices.next(),
-                Tabs::AvailableNetworks => app.new_networks.next(),
+                Tabs::AvailableNetworks => app.available_networks.next(),
                 Tabs::KnownNetworks => app.known_networks.next(),
             },
             KeyCode::Char('k') | KeyCode::Up => match tui.active_tab {
                 Tabs::Devices => app.devices.previous(),
-                Tabs::AvailableNetworks => app.new_networks.previous(),
+                Tabs::AvailableNetworks => app.available_networks.previous(),
                 Tabs::KnownNetworks => app.known_networks.previous(),
             },
 
             KeyCode::Char('r') => match tui.active_tab {
-                Tabs::AvailableNetworks | Tabs::KnownNetworks => app.scan_networks().await?,
+                Tabs::AvailableNetworks | Tabs::KnownNetworks => app.refresh_networks().await?,
                 _ => {}
             },
             KeyCode::Enter => match tui.active_tab {
                 Tabs::KnownNetworks => {
                     if let Some(network) = Tui::selected_network(&app.known_networks) {
                         tui.selected_network = Some(network.clone());
-                        if app.network_manager.has_saved_connection(&network.ssid).await? {
-                            app.network_manager.connect(&network.ssid, None, WifiSecurity::Open).await?;
+                        if app
+                            .network_manager
+                            .has_saved_connection(&network.ssid)
+                            .await?
+                        {
+                            app.network_manager
+                                .connect(&network.ssid, None, WifiSecurity::Open)
+                                .await?;
                         }
                     }
-                },
+                }
                 Tabs::AvailableNetworks => {
-                    if let Some(network) = Tui::selected_network(&app.new_networks) {
+                    if let Some(network) = Tui::selected_network(&app.available_networks) {
                         tui.selected_network = Some(network.clone());
                         if network.is_psk {
                             app.password_input.clear();
                             app.input_mode = InputMode::Editing
                         }
                     }
-                },
+                }
                 Tabs::Devices => {}
             },
             KeyCode::Char('f') => {
@@ -79,7 +85,9 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                     .connect(
                         &tui.selected_network.clone().unwrap().ssid,
                         None,
-                        WifiSecurity::WpaPsk { psk: app.password_input.clone() },
+                        WifiSecurity::WpaPsk {
+                            psk: tui.input.value.clone(),
+                        },
                     )
                     .await?;
                 app.password_input.clear();
