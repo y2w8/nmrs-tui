@@ -3,12 +3,13 @@ use crossterm::event::{KeyCode, KeyEvent};
 use nmrs::WifiSecurity;
 
 use crate::{
-    app::{App, InputMode},
+    app::App,
     tui::{Tabs, Tui},
+    ui::input::InputMode,
 };
 
 pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Result<()> {
-    match app.input_mode {
+    match tui.input.mode {
         InputMode::Normal => match key.code {
             KeyCode::Char('q') => app.quit(),
 
@@ -61,8 +62,7 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                     if let Some(network) = Tui::selected_network(&app.available_networks) {
                         tui.selected_network = Some(network.clone());
                         if network.is_psk {
-                            app.password_input.clear();
-                            app.input_mode = InputMode::Editing
+                            tui.input.mode = InputMode::Editing
                         }
                     }
                 }
@@ -80,7 +80,7 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
         },
         InputMode::Editing => match key.code {
             KeyCode::Enter => {
-                app.input_mode = InputMode::Normal;
+                tui.input.mode = InputMode::Normal;
                 app.network_manager
                     .connect(
                         &tui.selected_network.clone().unwrap().ssid,
@@ -90,17 +90,18 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                         },
                     )
                     .await?;
-                app.password_input.clear();
+                tui.input.value.clear();
+                tui.input.reset_cursor();
             }
             KeyCode::Esc => {
-                app.input_mode = InputMode::Normal;
+                tui.input.mode = InputMode::Normal;
+                tui.input.value.clear();
+                tui.input.reset_cursor();
             }
-            KeyCode::Char(c) => {
-                app.password_input.push(c);
-            }
-            KeyCode::Backspace => {
-                app.password_input.pop();
-            }
+            KeyCode::Char(to_insert) => tui.input.enter_char(to_insert),
+            KeyCode::Backspace => tui.input.delete_char(),
+            KeyCode::Left => tui.input.move_cursor_left(),
+            KeyCode::Right => tui.input.move_cursor_right(),
             _ => {}
         },
     }

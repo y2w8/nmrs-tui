@@ -4,21 +4,12 @@ use crate::{
 use anyhow::Result;
 use nmrs::Network;
 
-#[derive(PartialEq)]
-pub enum InputMode {
-    Normal,
-    Editing,
-}
-
 pub struct App {
     pub should_quit: bool,
     pub network_manager: NetworkManager,
 
     pub devices: StatefulList<nmrs::Device>,
     pub known_networks: StatefulList<Network>,
-
-    pub input_mode: InputMode,
-    pub password_input: String,
     pub available_networks: StatefulList<Network>,
 }
 
@@ -45,9 +36,6 @@ impl App {
 
             devices: StatefulList::with_items(device_list),
             known_networks: StatefulList::with_items(known_networks_list),
-
-            input_mode: InputMode::Normal,
-            password_input: "".to_string(),
             available_networks: StatefulList::with_items(available_networks_list),
         })
     }
@@ -55,7 +43,7 @@ impl App {
     pub async fn refresh_networks(&mut self) -> Result<()> {
         let (known_networks, available_networks) = self.network_manager.scan_networks().await?;
         self.known_networks.items = known_networks;
-        self.new_networks.items = available_networks;
+        self.available_networks.items = available_networks;
         Ok(())
     }
 

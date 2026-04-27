@@ -1,5 +1,4 @@
 use anyhow::Result;
-use std::io::stdout;
 
 #[macro_use] extern crate log;
 extern crate simplelog;
@@ -12,9 +11,6 @@ mod tui;
 mod ui;
 
 use app::App;
-use crossterm::ExecutableCommand;
-use crossterm::terminal::{self, enable_raw_mode};
-use ratatui::{Terminal, prelude::CrosstermBackend};
 use tui::Tui;
 
 use crate::network_manager::NetworkManager;
@@ -27,17 +23,8 @@ async fn main() -> Result<()> {
     let mut app = App::new(network_manager).await?;
     let mut tui = Tui::new(&mut app)?;
 
-    let mut stdout = stdout();
-    enable_raw_mode()?;
-    stdout
-        .execute(terminal::EnterAlternateScreen)?
-        .execute(terminal::Clear(terminal::ClearType::All))?;
-
-    let backend = CrosstermBackend::new(stdout);
-    let terminal = Terminal::new(backend)?;
-
     // Start TUI
-    tui.run(&mut app, terminal).await?;
+    tui.run(&mut app).await?;
 
     Ok(())
 }
