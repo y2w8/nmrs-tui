@@ -10,32 +10,31 @@ pub enum InputMode {
     Editing,
 }
 
-pub struct App {
+pub struct App<'a> {
     pub should_quit: bool,
     pub network_manager: network::Manager,
 
-    pub devices: StatefulList<nmrs::Device>,
-    pub known_networks: StatefulList<Network>,
-    pub new_networks: StatefulList<Network>,
+    pub devices: StatefulList<'a, nmrs::Device>,
+    pub known_networks: StatefulList<'a, Network>,
+    pub new_networks: StatefulList<'a, Network>,
 
     pub input_mode: InputMode,
     pub password_input: String,
 }
 
-impl App {
+impl<'a> App<'a> {
     pub async fn new(mut network_manager: network::Manager) -> Result<Self> {
         let scaned_networks = network_manager.get_wifi_scan().await.unwrap_or_default();
+
         let device_list = network_manager.get_devices().await.unwrap_or_default();
-
-
-        let mut known_networks_list = Vec::new();
+        let mut known_networks_list: Vec<&Network> = Vec::new();
         let mut available_networks_list = Vec::new();
 
         for network in &scaned_networks {
             if network_manager.has_saved_connection(&network.ssid).await? {
-                known_networks_list.push(network.clone());
+                known_networks_list.push(network);
             } else {
-                available_networks_list.push(network.clone());
+                available_networks_list.push(network);
             }
         }
 
@@ -53,7 +52,6 @@ impl App {
     }
 
     pub async fn scan_networks(&mut self) -> anyhow::Result<()> {
-        // let known_names = self.network_manager.get_saved_networks().await.unwrap_or_default();
         let scan_list = self.network_manager.get_wifi_scan().await.unwrap_or_default();
 
         let mut known_final = Vec::new();
@@ -61,9 +59,9 @@ impl App {
 
         for net in &scan_list {
             if self.network_manager.has_saved_connection(&net.ssid).await? {
-                known_final.push(net.clone());
+                known_final.push(net);
             } else {
-                new_final.push(net.clone());
+                new_final.push(net);
             }
         }
         self.known_networks.items = known_final;

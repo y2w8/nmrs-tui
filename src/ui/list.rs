@@ -2,12 +2,12 @@ use ratatui::{
     widgets::{TableState},
 };
 
-pub struct StatefulList<T> {
+pub struct StatefulList<'a, T> {
     pub state: TableState,
-    pub items: Vec<T>,
+    pub items: Vec<&'a T>,
 }
-impl<T> StatefulList<T> {
-    pub fn with_items(items: Vec<T>) -> Self {
+impl<'a, T> StatefulList<'a, T> {
+    pub fn with_items(items: Vec<&'a T>) -> Self {
         Self {
             state: TableState::default(),
             items,

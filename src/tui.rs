@@ -21,22 +21,23 @@ use crate::{
     }
 };
 
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone, Copy)]
 pub enum Tabs {
     KnownNetworks,
     AvailableNetworks,
     Devices,
 }
 
-pub struct Tui {
+#[derive(Clone, Copy)]
+pub struct Tui<'a> {
     pub terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
 
     pub active_tab: Tabs,
-    pub selected_network: Option<Network>,
+    pub selected_network: Option<&'a Network>,
 }
 
-impl<'a> Tui {
-    pub fn new(app: &mut App) -> anyhow::Result<Self> {
+impl<'a> Tui<'a> {
+    pub fn new(app: &'a mut App) -> anyhow::Result<Self> {
         let mut stdout = stdout();
         enable_raw_mode()?;
         stdout
@@ -63,16 +64,15 @@ impl<'a> Tui {
         })
     }
 
-    pub fn selected_network(list: &StatefulList<Network>) -> Option<Network> {
+    pub fn selected_network(list: &'a StatefulList<Network>) -> Option<&'a Network> {
         list.state
             .selected()
-            .and_then(|index| list.items.get(index))
-            .cloned()
+            .and_then(|index| list.items.get(index)).map(|v| &**v)
     }
 
     pub async fn run(
-        &mut self,
-        app: &mut App,
+        &'a mut self,
+        app: &'a mut App<'a>,
         mut terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
     ) -> Result<()> {
 
@@ -81,9 +81,9 @@ impl<'a> Tui {
 
         while !app.should_quit {
             if last_tick.elapsed() >= tick_rate {
-                if let Err(e) = app.scan_networks().await {
-                    eprintln!("scan error: {:?}", e);
-                }
+                // if let Err(e) = *app.scan_networks().await {
+                //     eprintln!("scan error: {:?}", e);
+                // }
                 last_tick = tokio::time::Instant::now();
             }
             terminal.draw(|f| {

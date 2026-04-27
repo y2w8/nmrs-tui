@@ -7,7 +7,7 @@ use crate::{
     tui::{Tabs, Tui},
 };
 
-pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Result<()> {
+pub async fn handle_events<'a>(app: &'a mut App<'a>, tui: &'a mut Tui<'a>, key: KeyEvent) -> Result<()> {
     match app.input_mode {
         InputMode::Normal => match key.code {
             KeyCode::Char('q') => app.quit(),
@@ -45,7 +45,7 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
             KeyCode::Enter => match tui.active_tab {
                 Tabs::KnownNetworks => {
                     if let Some(network) = Tui::selected_network(&app.known_networks) {
-                        tui.selected_network = Some(network.clone());
+                        tui.selected_network = Some(network);
                         if app.network_manager.has_saved_connection(&network.ssid).await? {
                             app.network_manager.connect(&network.ssid, None, WifiSecurity::Open).await?;
                         }
@@ -53,7 +53,7 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                 },
                 Tabs::AvailableNetworks => {
                     if let Some(network) = Tui::selected_network(&app.new_networks) {
-                        tui.selected_network = Some(network.clone());
+                        tui.selected_network = Some(network);
                         if network.is_psk {
                             app.password_input.clear();
                             app.input_mode = InputMode::Editing
