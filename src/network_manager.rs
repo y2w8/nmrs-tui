@@ -1,8 +1,6 @@
 use anyhow::{Ok, Result};
 use nmrs::{ConnectionError, Device, Network, SavedConnection, WifiSecurity};
 
-use crate::app::App;
-
 #[derive()]
 pub struct NetworkManager {
     pub network_manager: nmrs::NetworkManager,
@@ -41,7 +39,7 @@ impl NetworkManager {
         }
     }
 
-    pub async fn get_wifi_scan(&mut self) -> Result<Vec<Network>> {
+    pub async fn scan_networks(&mut self) -> Result<Vec<Network>> {
         self.network_manager.scan_networks(None).await?;
         self.current_connection = self.network_manager.current_network().await?;
 
@@ -50,8 +48,8 @@ impl NetworkManager {
         Ok(networks)
     }
 
-    pub async fn scan_networks(&mut self) -> anyhow::Result<(Vec<Network>, Vec<Network>)> {
-        let scan_list = self.get_wifi_scan().await.unwrap_or_default();
+    pub async fn networks_list(&mut self) -> anyhow::Result<(Vec<Network>, Vec<Network>)> {
+        let scan_list = self.scan_networks().await.unwrap_or_default();
 
         let mut known_final = Vec::new();
         let mut new_final = Vec::new();
@@ -66,18 +64,16 @@ impl NetworkManager {
         Ok((known_final, new_final))
     }
 
-    // PERF: test this if its faster than "has_saved_connection" function.
-    //
-    // pub async fn get_saved_networks(&mut self) -> anyhow::Result<Vec<SavedConnection>> {
-    //     let saved_networks = self.network_manager.list_saved_connections().await?;
-    //     Ok(saved_networks)
-    // }
+    pub async fn saved_connections(&mut self) -> anyhow::Result<Vec<SavedConnection>> {
+        Ok(self.network_manager.list_saved_connections().await?)
+    }
 
     pub async fn forget(&mut self, ssid: &str) -> anyhow::Result<()> {
         self.network_manager.forget(ssid).await?;
         Ok(())
     }
 
+    // TODO: add toast msg
     pub async fn connect(
         &mut self,
         ssid: &str,
@@ -90,7 +86,7 @@ impl NetworkManager {
             .await
         {
             std::result::Result::Ok(_) => {
-                println!("Connected!");
+                debug!("Connected!");
                 Ok(())
             }
             Err(ConnectionError::NotFound) => {
@@ -98,6 +94,7 @@ impl NetworkManager {
                 Ok(())
             }
             Err(ConnectionError::AuthFailed) => {
+                self.forget(ssid).await?;
                 warn!("Wrong password");
                 Ok(())
             }
@@ -106,11 +103,11 @@ impl NetworkManager {
                 Ok(())
             }
             Err(ConnectionError::DhcpFailed) => {
-                eprintln!("Failed to get an IP address");
+                error!("Failed to get an IP address");
                 Ok(())
             }
             Err(e) => {
-                eprintln!("Connection failed: {}", e);
+                error!("Connection failed: {}", e);
                 Ok(())
             }
         }

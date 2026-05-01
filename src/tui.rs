@@ -2,9 +2,9 @@ use anyhow::{Ok, Result};
 use crossterm::{
     ExecutableCommand,
     event::{self, Event},
-    terminal::{self, disable_raw_mode, enable_raw_mode},
+    terminal::{self, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use nmrs::Network;
+use nmrs::{Device, Network};
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -16,9 +16,9 @@ use crate::{
     app::App,
     events,
     ui::{
-        self,
+        Urgency,
         input::{Input, InputMode},
-        list::StatefulList,
+        popup, table,
     },
 };
 
@@ -29,12 +29,18 @@ pub enum Tabs {
     Devices,
 }
 
+#[derive(Clone)]
+pub enum Selected {
+    Network(Network),
+    Device(Device),
+}
+
 pub struct Tui {
     pub terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
 
     pub input: Input,
     pub active_tab: Tabs,
-    pub selected_network: Option<Network>,
+    pub selected: Option<Selected>,
 }
 
 impl Tui {
@@ -48,35 +54,48 @@ impl Tui {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        if !app.available_networks.items.is_empty() {
-            app.available_networks.state.select(Some(0));
-        }
-        if !app.known_networks.items.is_empty() {
-            app.known_networks.state.select(Some(0));
-        }
-        if !app.devices.items.is_empty() {
-            app.devices.state.select(Some(0));
-        }
+        app.known_networks.state.select_first();
+        app.available_networks.state.select_first();
+        app.devices.state.select_first();
 
         Ok(Tui {
             terminal,
 
             input: Input::new(),
-            selected_network: Self::selected_network(&app.available_networks),
+            selected: None,
             active_tab: Tabs::KnownNetworks,
         })
     }
 
-    pub fn selected_network(list: &StatefulList<Network>) -> Option<Network> {
-        list.state
-            .selected()
-            .and_then(|index| list.items.get(index))
-            .cloned()
+    pub fn update_selected(&mut self, app: &App) {
+        self.selected = match self.active_tab {
+            Tabs::AvailableNetworks => app
+                .available_networks
+                .state
+                .selected()
+                .and_then(|i| app.available_networks.items.get(i))
+                .map(|n| Selected::Network(n.clone())),
+
+            Tabs::KnownNetworks => app
+                .known_networks
+                .state
+                .selected()
+                .and_then(|i| app.known_networks.items.get(i))
+                .map(|n| Selected::Network(n.clone())),
+
+            Tabs::Devices => app
+                .devices
+                .state
+                .selected()
+                .and_then(|i| app.devices.items.get(i))
+                .map(|d| Selected::Device(d.clone())),
+        };
     }
 
     pub async fn run(&mut self, app: &mut App) -> Result<()> {
         let mut last_tick = tokio::time::Instant::now();
         let tick_rate = Duration::from_secs(3);
+        self.update_selected(app);
 
         while !app.should_quit {
             if last_tick.elapsed() >= tick_rate {
@@ -103,10 +122,12 @@ impl Tui {
                 )
                 .split(main_chunks[1]);
 
-                ui::render_all_tables(f, body_chunks, app, &self.active_tab);
+                table::draw_known_network(f, &body_chunks, app, &self.active_tab);
+                table::draw_available_network(f, &body_chunks, app, &self.active_tab);
+                table::draw_devices(f, &body_chunks, app, &self.active_tab);
 
                 if self.input.mode == InputMode::Editing {
-                    ui::render_password_popup(f, &self.input, &self.selected_network);
+                    popup::draw_auth(f, &self.input, &self.selected);
                 }
             })?;
 
@@ -121,12 +142,12 @@ impl Tui {
         Ok(())
     }
 
-    // Helper for terminal cleanup
+    // terminal cleanup
     fn cleanup(&mut self) -> Result<()> {
         disable_raw_mode()?;
         self.terminal
             .backend_mut()
-            .execute(terminal::LeaveAlternateScreen)?;
+            .execute(LeaveAlternateScreen)?;
         self.terminal.show_cursor()?;
         Ok(())
     }

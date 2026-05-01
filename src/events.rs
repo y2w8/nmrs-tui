@@ -4,7 +4,7 @@ use nmrs::WifiSecurity;
 
 use crate::{
     app::App,
-    tui::{Tabs, Tui},
+    tui::{Selected, Tabs, Tui},
     ui::input::InputMode,
 };
 
@@ -20,6 +20,7 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                     Tabs::AvailableNetworks => Tabs::Devices,
                     Tabs::Devices => Tabs::KnownNetworks,
                 };
+                tui.update_selected(app);
             }
             KeyCode::BackTab | KeyCode::Char('h') => {
                 tui.active_tab = match tui.active_tab {
@@ -27,17 +28,24 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
                     Tabs::AvailableNetworks => Tabs::KnownNetworks,
                     Tabs::Devices => Tabs::AvailableNetworks,
                 };
+                tui.update_selected(app);
             }
-            KeyCode::Char('j') | KeyCode::Down => match tui.active_tab {
-                Tabs::Devices => app.devices.next(),
-                Tabs::AvailableNetworks => app.available_networks.next(),
-                Tabs::KnownNetworks => app.known_networks.next(),
-            },
-            KeyCode::Char('k') | KeyCode::Up => match tui.active_tab {
-                Tabs::Devices => app.devices.previous(),
-                Tabs::AvailableNetworks => app.available_networks.previous(),
-                Tabs::KnownNetworks => app.known_networks.previous(),
-            },
+            KeyCode::Char('j') | KeyCode::Down => {
+                match tui.active_tab {
+                    Tabs::Devices => app.devices.next(),
+                    Tabs::AvailableNetworks => app.available_networks.next(),
+                    Tabs::KnownNetworks => app.known_networks.next(),
+                }
+                tui.update_selected(app);
+            }
+            KeyCode::Char('k') | KeyCode::Up => {
+                match tui.active_tab {
+                    Tabs::Devices => app.devices.previous(),
+                    Tabs::AvailableNetworks => app.available_networks.previous(),
+                    Tabs::KnownNetworks => app.known_networks.previous(),
+                }
+                tui.update_selected(app);
+            }
 
             KeyCode::Char('r') => match tui.active_tab {
                 Tabs::AvailableNetworks | Tabs::KnownNetworks => app.refresh_networks().await?,
@@ -45,53 +53,53 @@ pub async fn handle_events(app: &mut App, tui: &mut Tui, key: KeyEvent) -> Resul
             },
             KeyCode::Enter => match tui.active_tab {
                 Tabs::KnownNetworks => {
-                    if let Some(network) = Tui::selected_network(&app.known_networks) {
-                        tui.selected_network = Some(network.clone());
-                        if app
-                            .network_manager
-                            .has_saved_connection(&network.ssid)
-                            .await?
-                        {
-                            app.network_manager
-                                .connect(&network.ssid, None, WifiSecurity::Open)
-                                .await?;
-                        }
+                    if let Some(Selected::Network(net)) = &tui.selected
+                        && app.network_manager.has_saved_connection(&net.ssid).await?
+                    {
+                        app.network_manager
+                            .connect(&net.ssid, None, WifiSecurity::Open)
+                            .await?;
+                        app.known_networks.state.select_first();
+                        tui.update_selected(app);
                     }
                 }
                 Tabs::AvailableNetworks => {
-                    if let Some(network) = Tui::selected_network(&app.available_networks) {
-                        tui.selected_network = Some(network.clone());
-                        if network.is_psk {
-                            tui.input.mode = InputMode::Editing
-                        }
+                    if let Some(Selected::Network(net)) = &tui.selected
+                        && net.is_psk
+                    {
+                        tui.input.mode = InputMode::Editing
                     }
                 }
                 Tabs::Devices => {}
             },
             KeyCode::Char('f') => {
-                if tui.active_tab == Tabs::KnownNetworks {
-                    tui.selected_network = Tui::selected_network(&app.known_networks);
-                    app.network_manager
-                        .forget(&tui.selected_network.clone().unwrap().ssid)
-                        .await?;
+                if tui.active_tab == Tabs::KnownNetworks
+                    && let Some(Selected::Network(net)) = &tui.selected
+                {
+                    app.network_manager.forget(&net.ssid).await?;
+                    tui.update_selected(app);
                 }
             }
             _ => {}
         },
         InputMode::Editing => match key.code {
             KeyCode::Enter => {
-                tui.input.mode = InputMode::Normal;
-                app.network_manager
-                    .connect(
-                        &tui.selected_network.clone().unwrap().ssid,
-                        None,
-                        WifiSecurity::WpaPsk {
-                            psk: tui.input.value.clone(),
-                        },
-                    )
-                    .await?;
-                tui.input.value.clear();
-                tui.input.reset_cursor();
+                if let Some(Selected::Network(net)) = &tui.selected {
+                    app.network_manager
+                        .connect(
+                            &net.ssid,
+                            None,
+                            WifiSecurity::WpaPsk {
+                                psk: tui.input.value.clone(),
+                            },
+                        )
+                        .await?;
+                    tui.input.mode = InputMode::Normal;
+                    tui.input.value.clear();
+                    tui.input.reset_cursor();
+                    app.available_networks.next();
+                    tui.update_selected(app);
+                }
             }
             KeyCode::Esc => {
                 tui.input.mode = InputMode::Normal;

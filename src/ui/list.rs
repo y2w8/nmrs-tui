@@ -1,6 +1,4 @@
-use ratatui::{
-    widgets::{TableState},
-};
+use ratatui::widgets::TableState;
 
 pub struct StatefulList<T> {
     pub state: TableState,
@@ -48,4 +46,3 @@ impl<T> StatefulList<T> {
         self.state.select(Some(i));
     }
 }
-

@@ -5,6 +5,7 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::{env, fs};
 
+// FIX: it does not save log file when app panic "such useless logger".
 pub fn init() -> Result<()> {
     let level = match env::var("RUST_LOG")
         .unwrap_or_default()
@@ -27,7 +28,7 @@ pub fn init() -> Result<()> {
 pub fn get_log_path() -> PathBuf {
     let base = dirs::cache_dir().unwrap_or_else(|| PathBuf::from(".")); // fallback to cwd
 
-    let dir = base.join("netrs");
+    let dir = base.join("nmrs-tui");
     fs::create_dir_all(&dir).expect("Failed to create log dir");
-    dir.join("netrs.log")
+    dir.join("nmrs-tui.log")
 }
