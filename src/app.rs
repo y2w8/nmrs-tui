@@ -1,6 +1,6 @@
 use crate::{network_manager::NetworkManager, ui::list::StatefulList};
 use anyhow::Result;
-use nmrs::{Device, Network};
+use nmrs::{Network, WifiDevice};
 
 pub struct App {
     pub should_quit: bool,
@@ -8,7 +8,7 @@ pub struct App {
 
     pub known_networks: StatefulList<Network>,
     pub available_networks: StatefulList<Network>,
-    pub devices: StatefulList<Device>,
+    pub devices: StatefulList<WifiDevice>,
 }
 
 impl App {
@@ -21,9 +21,9 @@ impl App {
             should_quit: false,
             network_manager,
 
-            devices: StatefulList::with_items(device_list),
             known_networks: StatefulList::with_items(known_networks_list),
             available_networks: StatefulList::with_items(available_networks_list),
+            devices: StatefulList::with_items(device_list),
         })
     }
 

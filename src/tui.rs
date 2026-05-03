@@ -4,7 +4,7 @@ use crossterm::{
     event::{self, Event},
     terminal::{self, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use nmrs::{Device, Network};
+use nmrs::{Network, WifiDevice};
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -32,7 +32,7 @@ pub enum Tabs {
 #[derive(Clone)]
 pub enum Selected {
     Network(Network),
-    Device(Device),
+    Device(WifiDevice),
 }
 
 pub struct Tui {

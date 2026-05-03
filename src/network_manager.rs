@@ -1,11 +1,11 @@
 use anyhow::{Ok, Result};
-use nmrs::{ConnectionError, Device, Network, SavedConnection, WifiSecurity};
+use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
 
 #[derive()]
 pub struct NetworkManager {
     pub network_manager: nmrs::NetworkManager,
     pub current_connection: Option<Network>,
-    pub devices: Vec<Device>,
+    pub devices: Vec<WifiDevice>,
     pub enabled: bool,
 }
 
@@ -14,7 +14,7 @@ impl NetworkManager {
         let network_manager = nmrs::NetworkManager::new().await?;
         let current_connection = network_manager.current_network().await?;
 
-        let devices = network_manager.list_devices().await?;
+        let devices = network_manager.list_wifi_devices().await?;
 
         let enabled = network_manager.wifi_state().await?.enabled;
 
@@ -26,17 +26,8 @@ impl NetworkManager {
         })
     }
 
-    pub async fn get_devices(&mut self) -> Result<Vec<Device>> {
-        let devices = self.network_manager.list_devices().await?;
-        let wireless_devices: Vec<Device> = devices
-            .into_iter()
-            .filter(|dev| dev.is_wireless())
-            .collect();
-        if wireless_devices.is_empty() {
-            anyhow::bail!("No wireless device found")
-        } else {
-            Ok(wireless_devices)
-        }
+    pub async fn get_devices(&mut self) -> Result<Vec<WifiDevice>> {
+        Ok(self.network_manager.list_wifi_devices().await?)
     }
 
     pub async fn scan_networks(&mut self) -> Result<Vec<Network>> {
@@ -73,7 +64,7 @@ impl NetworkManager {
         Ok(())
     }
 
-    // TODO: add toast msg
+    // TODO: add toast msg, send a signal or somthing like that.
     pub async fn connect(
         &mut self,
         ssid: &str,
