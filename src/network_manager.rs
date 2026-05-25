@@ -3,7 +3,7 @@ use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
 
 #[derive()]
 pub struct NetworkManager {
-    pub network_manager: nmrs::NetworkManager,
+    pub nmrs: nmrs::NetworkManager,
     pub current_connection: Option<Network>,
     pub devices: Vec<WifiDevice>,
     pub enabled: bool,
@@ -11,30 +11,30 @@ pub struct NetworkManager {
 
 impl NetworkManager {
     pub async fn new() -> anyhow::Result<Self> {
-        let network_manager = nmrs::NetworkManager::new().await?;
-        let current_connection = network_manager.current_network().await?;
+        let nmrs = nmrs::NetworkManager::new().await?;
+        let current_connection = nmrs.current_network().await?;
 
-        let devices = network_manager.list_wifi_devices().await?;
+        let devices = nmrs.list_wifi_devices().await?;
 
-        let enabled = network_manager.wifi_state().await?.enabled;
+        let enabled = nmrs.wifi_state().await?.enabled;
 
         Ok(Self {
-            network_manager,
+            nmrs,
             current_connection,
             devices,
             enabled,
         })
     }
 
-    pub async fn get_devices(&mut self) -> Result<Vec<WifiDevice>> {
-        Ok(self.network_manager.list_wifi_devices().await?)
+    pub async fn get_devices(&mut self) -> Result<Vec<WifiDevice>, ConnectionError> {
+        self.nmrs.list_wifi_devices().await
     }
 
     pub async fn scan_networks(&mut self) -> Result<Vec<Network>> {
-        self.network_manager.scan_networks(None).await?;
-        self.current_connection = self.network_manager.current_network().await?;
+        self.nmrs.scan_networks(None).await?;
+        self.current_connection = self.nmrs.current_network().await?;
 
-        let mut networks = self.network_manager.list_networks(None).await?;
+        let mut networks = self.nmrs.list_networks(None).await?;
         networks.sort_by(|a, b| b.strength.cmp(&a.strength));
         Ok(networks)
     }
@@ -55,13 +55,12 @@ impl NetworkManager {
         Ok((known_final, new_final))
     }
 
-    pub async fn saved_connections(&mut self) -> anyhow::Result<Vec<SavedConnection>> {
-        Ok(self.network_manager.list_saved_connections().await?)
+    pub async fn saved_connections(&mut self) -> Result<Vec<SavedConnection>, ConnectionError> {
+        self.nmrs.list_saved_connections().await
     }
 
-    pub async fn forget(&mut self, ssid: &str) -> anyhow::Result<()> {
-        self.network_manager.forget(ssid).await?;
-        Ok(())
+    pub async fn forget(&mut self, ssid: &str) -> Result<(), ConnectionError> {
+        self.nmrs.forget(ssid).await
     }
 
     // TODO: add toast msg, send a signal or somthing like that.
@@ -72,7 +71,7 @@ impl NetworkManager {
         credentials: WifiSecurity,
     ) -> Result<()> {
         match self
-            .network_manager
+            .nmrs
             .connect(ssid, interface, credentials)
             .await
         {
@@ -104,15 +103,15 @@ impl NetworkManager {
         }
     }
 
-    pub async fn is_connected(&mut self, ssid: &String) -> Result<bool> {
-        Ok(self.network_manager.is_connected(ssid).await?)
+    pub async fn is_connected(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
+        self.nmrs.is_connected(ssid).await
     }
 
     pub fn is_connected_cached(&mut self, ssid: &String) -> bool {
         self.current_connection.is_some() && self.current_connection.clone().unwrap().ssid == *ssid
     }
 
-    pub async fn has_saved_connection(&mut self, ssid: &str) -> Result<bool> {
-        Ok(self.network_manager.has_saved_connection(ssid).await?)
+    pub async fn has_saved_connection(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
+        self.nmrs.has_saved_connection(ssid).await
     }
 }
