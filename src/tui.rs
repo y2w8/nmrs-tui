@@ -17,6 +17,7 @@ use crate::{
     events,
     ui::{
         Urgency,
+        help,
         input::{Input, InputMode},
         popup, table,
     },
@@ -118,6 +119,7 @@ impl Tui {
                         Constraint::Percentage(40),
                         Constraint::Percentage(40),
                         Constraint::Percentage(20),
+                        Constraint::Length(1),
                     ],
                 )
                 .split(main_chunks[1]);
@@ -125,6 +127,7 @@ impl Tui {
                 table::draw_known_network(f, &body_chunks, app, &self.active_tab);
                 table::draw_available_network(f, &body_chunks, app, &self.active_tab);
                 table::draw_devices(f, &body_chunks, app, &self.active_tab);
+                help::draw(f, body_chunks[3], &self.active_tab);
 
                 if self.input.mode == InputMode::Editing {
                     popup::draw_auth(f, &self.input, &self.selected);

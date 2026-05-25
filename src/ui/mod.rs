@@ -1,5 +1,6 @@
 use ratatui::layout::Rect;
 
+pub mod help;
 pub mod input;
 pub mod list;
 pub mod popup;
