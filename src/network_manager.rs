@@ -1,16 +1,20 @@
 use anyhow::{Ok, Result};
 use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
+use tokio::sync::mpsc::UnboundedSender;
 
-#[derive()]
+use crate::{app::AppEvent, ui::toast::Urgency};
+
+#[derive(Clone)]
 pub struct NetworkManager {
     pub nmrs: nmrs::NetworkManager,
+    pub event_sender: UnboundedSender<AppEvent>,
     pub current_connection: Option<Network>,
     pub devices: Vec<WifiDevice>,
     pub enabled: bool,
 }
 
 impl NetworkManager {
-    pub async fn new() -> anyhow::Result<Self> {
+    pub async fn new(event_sender: UnboundedSender<AppEvent>) -> anyhow::Result<Self> {
         let nmrs = nmrs::NetworkManager::new().await?;
         let current_connection = nmrs.current_network().await?;
 
@@ -20,6 +24,7 @@ impl NetworkManager {
 
         Ok(Self {
             nmrs,
+            event_sender,
             current_connection,
             devices,
             enabled,
@@ -63,42 +68,72 @@ impl NetworkManager {
         self.nmrs.forget(ssid).await
     }
 
-    // TODO: add toast msg, send a signal or somthing like that.
     pub async fn connect(
         &mut self,
         ssid: &str,
         interface: Option<&str>,
         credentials: WifiSecurity,
-    ) -> Result<()> {
-        match self
-            .nmrs
-            .connect(ssid, interface, credentials)
-            .await
-        {
+    ) {
+        match self.nmrs.connect(ssid, interface, credentials).await {
             std::result::Result::Ok(_) => {
-                debug!("Connected!");
-                Ok(())
+                let msg = "Connected!";
+                info!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Success,
+                    None,
+                ));
             }
             Err(ConnectionError::NotFound) => {
-                warn!("Network not visible — is it in range?");
-                Ok(())
+                let msg = "Network not visible — is it in range?";
+                error!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Critical,
+                    None,
+                ));
             }
             Err(ConnectionError::AuthFailed) => {
-                self.forget(ssid).await?;
-                warn!("Wrong password");
-                Ok(())
+                let _ = self.forget(ssid).await;
+                let msg = "Wrong password!";
+                error!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Critical,
+                    None,
+                ));
             }
             Err(ConnectionError::Timeout) => {
-                error!("Connection timed out — try increasing the timeout");
-                Ok(())
+                let msg = "Connection timed out — try increasing the timeout";
+                error!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Critical,
+                    None,
+                ));
             }
             Err(ConnectionError::DhcpFailed) => {
-                error!("Failed to get an IP address");
-                Ok(())
+                let msg = "Failed to get an IP address";
+                error!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Critical,
+                    None,
+                ));
             }
             Err(e) => {
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    "Connection failed - check logs".into(),
+                    Urgency::Critical,
+                    None,
+                ));
                 error!("Connection failed: {}", e);
-                Ok(())
             }
         }
     }

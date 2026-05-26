@@ -7,6 +7,7 @@ pub enum InputMode {
 pub struct Input {
     pub mode: InputMode,
     pub value: String,
+    pub hidden_password: bool,
     // cursor postion x.
     pub cx: usize,
 }
@@ -16,6 +17,7 @@ impl Input {
         Self {
             mode: InputMode::Normal,
             value: String::new(),
+            hidden_password: true,
             cx: 0,
         }
     }

@@ -10,16 +10,19 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Direction, Layout},
 };
-use std::{io::stdout, time::Duration};
+use std::{
+    io::stdout,
+    time::{self, Duration},
+};
 
 use crate::{
-    app::App,
+    app::{App, AppEvent},
     events,
     ui::{
-        Urgency,
         help,
         input::{Input, InputMode},
         popup, table,
+        toast::{self, Toast},
     },
 };
 
@@ -42,6 +45,9 @@ pub struct Tui {
     pub input: Input,
     pub active_tab: Tabs,
     pub selected: Option<Selected>,
+    pub toasts: Vec<Toast>,
+
+    pub scan: bool,
 }
 
 impl Tui {
@@ -63,8 +69,11 @@ impl Tui {
             terminal,
 
             input: Input::new(),
-            selected: None,
             active_tab: Tabs::KnownNetworks,
+            selected: None,
+            toasts: Vec::new(),
+
+            scan: true,
         })
     }
 
@@ -93,18 +102,30 @@ impl Tui {
         };
     }
 
+    // TODO: whats is the diffrence between std time and tokio
     pub async fn run(&mut self, app: &mut App) -> Result<()> {
-        let mut last_tick = tokio::time::Instant::now();
-        let tick_rate = Duration::from_secs(3);
+        let mut last_tick = time::Instant::now();
+        let mut rescan_timer = Duration::from_secs(10);
         self.update_selected(app);
 
         while !app.should_quit {
-            if last_tick.elapsed() >= tick_rate {
-                if let Err(e) = app.refresh_networks().await {
-                    eprintln!("scan error: {:?}", e);
-                }
-                last_tick = tokio::time::Instant::now();
+            let now = time::Instant::now();
+            let delta = now.saturating_duration_since(last_tick);
+            last_tick = now;
+
+            // Toast duration timer
+            self.toasts.iter_mut().for_each(|toast| {
+                toast.duration = toast.duration.saturating_sub(delta);
+            });
+            self.toasts.retain(|toast| !toast.duration.is_zero());
+
+            // Rescan timer
+            rescan_timer = rescan_timer.saturating_sub(delta);
+            if rescan_timer.is_zero() {
+                app.event_sender.send(AppEvent::Refresh)?;
+                rescan_timer = Duration::from_secs(10);
             }
+
             self.terminal.draw(|f| {
                 let size = f.area();
 
@@ -116,9 +137,9 @@ impl Tui {
                 let body_chunks = Layout::new(
                     Direction::Vertical,
                     [
-                        Constraint::Percentage(40),
-                        Constraint::Percentage(40),
-                        Constraint::Percentage(20),
+                        Constraint::Percentage(45),
+                        Constraint::Percentage(45),
+                        Constraint::Percentage(10),
                         Constraint::Length(1),
                     ],
                 )
@@ -130,14 +151,29 @@ impl Tui {
                 help::draw(f, body_chunks[3], &self.active_tab);
 
                 if self.input.mode == InputMode::Editing {
-                    popup::draw_auth(f, &self.input, &self.selected);
+                    popup::draw_auth(f, &self.input, &self.selected, self.input.hidden_password);
                 }
+                toast::draw(f, &self.toasts);
             })?;
+
+            while let std::result::Result::Ok(event) = app.event_receiver.try_recv() {
+                match event {
+                    AppEvent::Toast(title, msg, urgency, duration) => {
+                        self.toasts.push(Toast::new(title, msg, urgency, duration));
+                    }
+                    AppEvent::Refresh => {
+                        if self.scan {
+                            app.refresh_networks().await?;
+                            self.update_selected(app);
+                        }
+                    }
+                }
+            }
 
             if event::poll(std::time::Duration::from_millis(200))?
                 && let Event::Key(key) = event::read()?
             {
-                events::handle_events(app, self, key).await?;
+                events::handle_events(app, self, key, app.event_sender.clone()).await?;
             }
         }
 
@@ -148,9 +184,7 @@ impl Tui {
     // terminal cleanup
     fn cleanup(&mut self) -> Result<()> {
         disable_raw_mode()?;
-        self.terminal
-            .backend_mut()
-            .execute(LeaveAlternateScreen)?;
+        self.terminal.backend_mut().execute(LeaveAlternateScreen)?;
         self.terminal.show_cursor()?;
         Ok(())
     }

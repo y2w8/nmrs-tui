@@ -23,7 +23,7 @@ pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_
         Style::new()
     };
     let row_style = if is_active {
-        Style::new().on_blue().black()
+        Style::new().on_dark_gray()
     } else {
         Style::new()
     };
@@ -124,6 +124,7 @@ pub fn draw_known_network(
     );
 }
 
+// TODO: make constraint long as it need
 pub fn draw_available_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
@@ -137,7 +138,15 @@ pub fn draw_available_network(
         .map(|net| -> Row<'_> {
             Row::new(vec![
                 Cell::from(net.ssid.clone()),
-                Cell::from(if net.secured { "Secured" } else { "Open" }),
+                Cell::from(if net.is_psk {
+                    "psk"
+                } else if net.is_eap {
+                    "Enterprise"
+                } else if !net.secured {
+                    "Open"
+                } else {
+                    "Unknown"
+                }),
                 Cell::from(format!("{}%", net.strength.unwrap_or(0))),
             ])
         })
@@ -160,6 +169,7 @@ pub fn draw_available_network(
     );
 }
 
+// TODO: Add cells
 pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, active_tab: &Tabs) {
     let rows: Vec<Row> = app
         .devices

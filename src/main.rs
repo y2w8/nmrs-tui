@@ -13,14 +13,11 @@ mod ui;
 use app::App;
 use tui::Tui;
 
-use crate::network_manager::NetworkManager;
-
 #[tokio::main]
 async fn main() -> Result<()> {
     // Initialize
     logger::init()?;
-    let network_manager = NetworkManager::new().await?;
-    let mut app = App::new(network_manager).await?;
+    let mut app = App::new().await?;
     let mut tui = Tui::new(&mut app)?;
 
     // Start TUI
