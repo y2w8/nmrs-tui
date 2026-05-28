@@ -6,15 +6,12 @@ use crate::{
     ui::list::StatefulList,
 };
 use ratatui::{
-    Frame,
-    layout::{Constraint, Flex, Rect},
-    style::Style,
-    widgets::{Block, BorderType, Cell, Row, Table},
+    Frame, layout::{Constraint, Flex, Rect}, style::Style, text::Line, widgets::{Block, BorderType, Cell, Row, Table}
 };
 
 pub struct TableData<'a, T> {
     pub title: &'static str,
-    pub header_cols: Vec<&'static str>,
+    pub header_cols: Vec<Line<'a>>,
     pub constraint: Vec<Constraint>,
     pub cells: Vec<Row<'a>>,
     pub list: &'a mut StatefulList<T>,
@@ -71,14 +68,14 @@ pub fn draw_saved_connections(
         .iter()
         .map(|net| -> Row<'_> {
             Row::new(vec![
-                Cell::from(net.ssid.clone()),
-                Cell::from(if net.secured { "Secured" } else { "Open" }),
-                Cell::from(if app.network_manager.is_connected_cached(&net.ssid) {
+                Line::from(net.ssid.clone()).centered(),
+                Line::from(if net.secured { "Secured" } else { "Open" }).centered(),
+                Line::from(if app.network_manager.is_connected_cached(&net.ssid) {
                     "Connected"
                 } else {
                     "-"
-                }),
-                Cell::from(format!("{}%", net.strength.unwrap_or(0))),
+                }).centered(),
+                Line::from(format!("{}%", net.strength.unwrap_or(0))).centered(),
             ])
         })
         .collect();
@@ -87,7 +84,12 @@ pub fn draw_saved_connections(
         body_chunks[0],
         &mut TableData {
             title: " Known Networks ",
-            header_cols: vec!["Name", "Security", "State", "Signal"],
+            header_cols: vec![
+                Line::from("Name").centered(),
+                Line::from("Security").centered(),
+                Line::from("State").centered(),
+                Line::from("Signal").centered()
+            ],
             constraint: vec![
                 Constraint::Percentage(40),
                 Constraint::Percentage(20),
@@ -148,14 +150,14 @@ pub fn draw_known_network(
             };
 
             Row::new(vec![
-                Cell::from(net.ssid.clone()),
-                Cell::from(security),
-                Cell::from(if app.network_manager.is_connected_cached(&net.ssid) {
+                Line::from(net.ssid.clone()).centered(),
+                Line::from(security).centered(),
+                Line::from(if app.network_manager.is_connected_cached(&net.ssid) {
                     "Connected"
                 } else {
                     "-"
-                }),
-                Cell::from(format!("{}% {}", strength, bars)),
+                }).centered(),
+                Line::from(format!("{}% {}", strength, bars)).centered(),
             ])
         })
         .collect();
@@ -164,7 +166,12 @@ pub fn draw_known_network(
         body_chunks[0],
         &mut TableData {
             title: " Known Networks ",
-            header_cols: vec!["Name", "Security", "State", "Signal"],
+            header_cols: vec![
+                Line::from("Name").centered(),
+                Line::from("Security").centered(),
+                Line::from("State").centered(),
+                Line::from("Signal").centered()
+            ],
             constraint: vec![
                 Constraint::Percentage(40),
                 Constraint::Percentage(20),
@@ -224,9 +231,9 @@ pub fn draw_available_network(
             };
 
             Row::new(vec![
-                Cell::from(net.ssid.clone()),
-                Cell::from(security),
-                Cell::from(format!("{}% {}", strength, bars)),
+                Line::from(net.ssid.clone()).centered(),
+                Line::from(security).centered(),
+                Line::from(format!("{}% {}", strength, bars)).centered(),
             ])
         })
         .collect();
@@ -235,9 +242,13 @@ pub fn draw_available_network(
         body_chunks[1],
         &mut TableData {
             title: " Available Networks ",
-            header_cols: vec!["Name", "Security", "Signal"],
+            header_cols: vec![
+                Line::from("Name").centered(),
+                Line::from("Security").centered(),
+                Line::from("Signal").centered()
+            ],
             constraint: vec![
-                Constraint::Percentage(60),
+                Constraint::Percentage(40),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
             ],
@@ -268,15 +279,15 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
             };
 
             Row::new(vec![
-                Cell::from(dev.interface.clone()),
-                Cell::from(if app.network_manager.enabled {
+                Line::from(dev.interface.clone()).centered(),
+                Line::from(if app.network_manager.enabled {
                     "On"
                 } else {
                     "Off"
-                }),
-                Cell::from(format!("{}", dev.state)),
-                Cell::from(freq),
-                Cell::from(dev.hw_address.to_string()),
+                }).centered(),
+                Line::from(format!("{}", dev.state)).centered(),
+                Line::from(freq).centered(),
+                Line::from(dev.hw_address.to_string()).centered(),
             ])
         })
         .collect();
@@ -286,12 +297,12 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
         &mut TableData {
             title: " Device ",
             header_cols: vec![
-                "Name",
-                "Powered",
-                "State",
-                "Frequency",
-                "Address",
-                "Security",
+                Line::from("Name").centered(),
+                Line::from("Powered").centered(),
+                Line::from("State").centered(),
+                Line::from("Frequency").centered(),
+                Line::from("Address").centered(),
+                Line::from("Security").centered(),
             ],
             constraint: vec![
                 Constraint::Percentage(20),
