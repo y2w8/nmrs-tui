@@ -9,7 +9,7 @@ pub struct NetworkManager {
     pub nmrs: nmrs::NetworkManager,
     pub event_sender: UnboundedSender<AppEvent>,
     pub current_connection: Option<Network>,
-    pub devices: Vec<WifiDevice>,
+    pub _devices: Vec<WifiDevice>,
     pub enabled: bool,
 }
 
@@ -18,7 +18,7 @@ impl NetworkManager {
         let nmrs = nmrs::NetworkManager::new().await?;
         let current_connection = nmrs.current_network().await?;
 
-        let devices = nmrs.list_wifi_devices().await?;
+        let _devices = nmrs.list_wifi_devices().await?;
 
         let enabled = nmrs.wifi_state().await?.enabled;
 
@@ -26,7 +26,7 @@ impl NetworkManager {
             nmrs,
             event_sender,
             current_connection,
-            devices,
+            _devices,
             enabled,
         })
     }
@@ -60,7 +60,7 @@ impl NetworkManager {
         Ok((known_final, new_final))
     }
 
-    pub async fn saved_connections(&mut self) -> Result<Vec<SavedConnection>, ConnectionError> {
+    pub async fn _saved_connections(&mut self) -> Result<Vec<SavedConnection>, ConnectionError> {
         self.nmrs.list_saved_connections().await
     }
 
@@ -138,7 +138,7 @@ impl NetworkManager {
         }
     }
 
-    pub async fn is_connected(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
+    pub async fn _is_connected(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.is_connected(ssid).await
     }
 

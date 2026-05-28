@@ -1,6 +1,10 @@
 use std::rc::Rc;
 
-use crate::{app::App, tui::Tabs, ui::list::StatefulList};
+use crate::{
+    app::App,
+    tui::{Focus, Tabs},
+    ui::list::StatefulList,
+};
 use ratatui::{
     Frame,
     layout::{Constraint, Rect},
@@ -86,8 +90,16 @@ pub fn draw_known_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
     app: &mut App,
-    active_tab: &Tabs,
+    focus: &Focus,
 ) {
+    let active = if let Focus::Tab(tab) = focus
+        && *tab == Tabs::KnownNetworks
+    {
+        true
+    } else {
+        false
+    };
+
     let rows: Vec<Row> = app
         .known_networks
         .items
@@ -120,7 +132,7 @@ pub fn draw_known_network(
             cells: rows,
             list: &mut app.known_networks,
         },
-        *active_tab == Tabs::KnownNetworks,
+        active,
     );
 }
 
@@ -129,8 +141,15 @@ pub fn draw_available_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
     app: &mut App,
-    active_tab: &Tabs,
+    focus: &Focus,
 ) {
+    let active = if let Focus::Tab(tab) = focus
+        && *tab == Tabs::AvailableNetworks
+    {
+        true
+    } else {
+        false
+    };
     let rows: Vec<Row> = app
         .available_networks
         .items
@@ -165,12 +184,19 @@ pub fn draw_available_network(
             cells: rows,
             list: &mut app.available_networks,
         },
-        *active_tab == Tabs::AvailableNetworks,
+        active,
     );
 }
 
 // TODO: Add cells
-pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, active_tab: &Tabs) {
+pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, focus: &Focus) {
+    let active = if let Focus::Tab(tab) = focus
+        && *tab == Tabs::Devices
+    {
+        true
+    } else {
+        false
+    };
     let rows: Vec<Row> = app
         .devices
         .items
@@ -202,6 +228,6 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
             cells: rows,
             list: &mut app.devices,
         },
-        *active_tab == Tabs::Devices,
+        active,
     );
 }

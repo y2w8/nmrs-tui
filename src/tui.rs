@@ -20,17 +20,28 @@ use crate::{
     events,
     ui::{
         help,
-        input::{Input, InputMode},
+        input::{Input},
         popup, table,
         toast::{self, Toast},
     },
 };
 
-#[derive(PartialEq)]
+#[derive(Clone, Copy, PartialEq)]
 pub enum Tabs {
     KnownNetworks,
     AvailableNetworks,
     Devices,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+pub enum Popups {
+    Password,
+}
+
+#[derive(Clone, Copy)]
+pub enum Focus {
+    Tab(Tabs),
+    Popup(Popups),
 }
 
 #[derive(Clone)]
@@ -43,7 +54,8 @@ pub struct Tui {
     pub terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
 
     pub input: Input,
-    pub active_tab: Tabs,
+    pub focus: Focus,
+    pub last_focus: Focus,
     pub selected: Option<Selected>,
     pub toasts: Vec<Toast>,
 
@@ -69,7 +81,8 @@ impl Tui {
             terminal,
 
             input: Input::new(),
-            active_tab: Tabs::KnownNetworks,
+            focus: Focus::Tab(Tabs::KnownNetworks),
+            last_focus: Focus::Tab(Tabs::KnownNetworks),
             selected: None,
             toasts: Vec::new(),
 
@@ -78,31 +91,38 @@ impl Tui {
     }
 
     pub fn update_selected(&mut self, app: &App) {
-        self.selected = match self.active_tab {
-            Tabs::AvailableNetworks => app
-                .available_networks
-                .state
-                .selected()
-                .and_then(|i| app.available_networks.items.get(i))
-                .map(|n| Selected::Network(n.clone())),
+        self.selected = match self.focus {
+            Focus::Tab(tab) => match tab {
+                Tabs::AvailableNetworks => app
+                    .available_networks
+                    .state
+                    .selected()
+                    .and_then(|i| app.available_networks.items.get(i))
+                    .map(|n| Selected::Network(n.clone())),
 
-            Tabs::KnownNetworks => app
-                .known_networks
-                .state
-                .selected()
-                .and_then(|i| app.known_networks.items.get(i))
-                .map(|n| Selected::Network(n.clone())),
+                Tabs::KnownNetworks => app
+                    .known_networks
+                    .state
+                    .selected()
+                    .and_then(|i| app.known_networks.items.get(i))
+                    .map(|n| Selected::Network(n.clone())),
 
-            Tabs::Devices => app
-                .devices
-                .state
-                .selected()
-                .and_then(|i| app.devices.items.get(i))
-                .map(|d| Selected::Device(d.clone())),
+                Tabs::Devices => app
+                    .devices
+                    .state
+                    .selected()
+                    .and_then(|i| app.devices.items.get(i))
+                    .map(|d| Selected::Device(d.clone())),
+            },
+            Focus::Popup(_) => None,
         };
     }
 
-    // TODO: whats is the diffrence between std time and tokio
+    pub fn change_focus(&mut self, new_focus: Focus) {
+        self.last_focus = self.focus;
+        self.focus = new_focus;
+    }
+
     pub async fn run(&mut self, app: &mut App) -> Result<()> {
         let mut last_tick = time::Instant::now();
         let mut rescan_timer = Duration::from_secs(10);
@@ -145,14 +165,22 @@ impl Tui {
                 )
                 .split(main_chunks[1]);
 
-                table::draw_known_network(f, &body_chunks, app, &self.active_tab);
-                table::draw_available_network(f, &body_chunks, app, &self.active_tab);
-                table::draw_devices(f, &body_chunks, app, &self.active_tab);
-                help::draw(f, body_chunks[3], &self.active_tab);
+                table::draw_known_network(f, &body_chunks, app, &self.focus);
+                table::draw_available_network(f, &body_chunks, app, &self.focus);
+                table::draw_devices(f, &body_chunks, app, &self.focus);
+                help::draw(f, body_chunks[3], &self.focus);
 
-                if self.input.mode == InputMode::Editing {
-                    popup::draw_auth(f, &self.input, &self.selected, self.input.hidden_password);
+                if let Focus::Popup(popup) = self.focus {
+                    match popup {
+                        Popups::Password => popup::draw_auth(
+                            f,
+                            &self.input,
+                            &self.selected,
+                            self.input.hidden_password,
+                        ),
+                    }
                 }
+
                 toast::draw(f, &self.toasts);
             })?;
 
@@ -173,7 +201,7 @@ impl Tui {
             if event::poll(std::time::Duration::from_millis(200))?
                 && let Event::Key(key) = event::read()?
             {
-                events::handle_events(app, self, key, app.event_sender.clone()).await?;
+                events::handle_events(app, self, key).await?;
             }
         }
 
