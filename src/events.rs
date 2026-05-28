@@ -1,6 +1,6 @@
 use anyhow::{Ok, Result};
 use crossterm::event::{KeyCode, KeyEvent};
-use nmrs::WifiSecurity;
+use nmrs::{Network, WifiSecurity};
 
 use crate::{
     app::{App, AppEvent},
@@ -54,6 +54,13 @@ async fn handle_tabs(app: &mut App, tui: &mut Tui, key: KeyEvent, tab: Tabs) -> 
                 tui.update_selected(app);
             }
 
+            KeyCode::Char('o') => {
+                if tab == Tabs::Devices {
+                    app.event_sender.send(AppEvent::Refresh)?;
+                    app.network_manager.toggle_network().await?;
+                }
+            }
+
             KeyCode::Char('r') => match tab {
                 Tabs::AvailableNetworks | Tabs::KnownNetworks => {
                     app.event_sender.send(AppEvent::Refresh)?;
@@ -65,14 +72,21 @@ async fn handle_tabs(app: &mut App, tui: &mut Tui, key: KeyEvent, tab: Tabs) -> 
                 if let Focus::Tab(tab) = tui.focus {
                     match tab {
                         Tabs::KnownNetworks => {
-                            if let Some(Selected::Network(net)) = &tui.selected
-                                && app.network_manager.has_saved_connection(&net.ssid).await?
-                            {
-                                app.network_manager
-                                    .connect(&net.ssid, None, WifiSecurity::Open)
-                                    .await;
-                                app.known_networks.state.select_first();
-                                tui.update_selected(app);
+                            if let Some(Selected::Network(net)) = &tui.selected {
+                                if app.network_manager.has_saved_connection(&net.ssid).await?
+                                    && app.network_manager.current_connection.is_none()
+                                {
+                                    app.network_manager
+                                        .connect(&net.ssid, None, WifiSecurity::Open)
+                                        .await;
+                                    app.known_networks.state.select_first();
+                                    tui.update_selected(app);
+                                } else if let Some(current_connection) =
+                                    &app.network_manager.current_connection
+                                    && current_connection.ssid == net.ssid
+                                {
+                                    app.network_manager.nmrs.disconnect(None).await?
+                                }
                             }
                         }
                         Tabs::AvailableNetworks => {

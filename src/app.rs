@@ -9,7 +9,12 @@ use nmrs::{Network, WifiDevice};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 pub enum AppEvent {
-    Toast(Option<Cow<'static, str>>, Cow<'static, str>, Urgency, Option<Duration>),
+    Toast(
+        Option<Cow<'static, str>>,
+        Cow<'static, str>,
+        Urgency,
+        Option<Duration>,
+    ),
     Refresh,
 }
 
@@ -30,7 +35,7 @@ impl App {
         let (event_sender, event_receiver) = mpsc::unbounded_channel::<AppEvent>();
         let mut network_manager = NetworkManager::new(event_sender.clone()).await?;
 
-        let device_list = network_manager.get_devices().await.unwrap_or_default();
+        let device_list = network_manager.get_devices().await?;
         let (known_networks_list, available_networks_list) =
             network_manager.networks_list().await?;
 
@@ -48,8 +53,11 @@ impl App {
 
     pub async fn refresh_networks(&mut self) -> Result<()> {
         let (known_networks, available_networks) = self.network_manager.networks_list().await?;
+        let device_list = self.network_manager.get_devices().await?;
+
         self.known_networks.items = known_networks;
         self.available_networks.items = available_networks;
+        self.devices.items = device_list;
         Ok(())
     }
 

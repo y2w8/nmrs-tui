@@ -11,12 +11,12 @@ pub fn draw(f: &mut Frame, area: Rect, focus: &Focus) {
     let help_msg = match focus {
         Focus::Tab(tab) => match tab {
             Tabs::KnownNetworks => 
-                "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | a Show All | d Remove | t Autoconnect | s Scan | p Share | ctrl+r Switch Mode | ⇄ Nav",
+                "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | a Show All | d Remove | t Autoconnect | s Scan | p Share | ⇄ Nav",
             
             Tabs::AvailableNetworks => 
-                "k,  Up | j,  Down | 󱁐  or ↵  Connect | n Connect Hidden | a Show All | s Scan | ctrl+r Switch Mode | ⇄ Nav",
+                "k,  Up | j,  Down | 󱁐  or ↵  Connect | s Scan | ⇄ Nav",
             
-            Tabs::Devices => "s Scan | i Infos | o Toggle Power | ctrl+r Switch Mode | ⇄ Nav",
+            Tabs::Devices => "s Scan | i Infos | o Toggle Power | ⇄ Nav",
         },
         Focus::Popup(_) => "dsa",
     };

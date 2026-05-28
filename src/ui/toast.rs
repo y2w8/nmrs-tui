@@ -1,7 +1,11 @@
 use std::{borrow::Cow, time::Duration};
 
 use ratatui::{
-    Frame, layout::Alignment, style::Style, text::Line, widgets::{Block, Paragraph}
+    Frame,
+    layout::Alignment,
+    style::Style,
+    text::Line,
+    widgets::{Block, BorderType, Paragraph},
 };
 
 use crate::ui::{
@@ -89,10 +93,14 @@ pub fn draw(f: &mut Frame, toasts: &[Toast]) {
             Urgency::Critical => Style::new().red(),
         };
 
-        let title = Line::raw(toast.title.as_ref()).style(title_style.bold()).alignment(Alignment::Center);
+        let title = Line::raw(toast.title.as_ref())
+            .style(title_style.bold())
+            .alignment(Alignment::Center);
         let msg = Line::raw(toast.msg.as_ref());
 
-        let block = Block::bordered().border_style(border_style).border_type(ratatui::widgets::BorderType::Thick);
+        let block = Block::bordered()
+            .border_style(border_style)
+            .border_type(BorderType::Thick);
         f.render_widget(Paragraph::new(vec![title, msg]).block(block), area);
     }
 }

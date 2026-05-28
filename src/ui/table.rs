@@ -7,14 +7,14 @@ use crate::{
 };
 use ratatui::{
     Frame,
-    layout::{Constraint, Rect},
-    style::{Style, Stylize},
-    widgets::{Block, Cell, Row, Table},
+    layout::{Constraint, Flex, Rect},
+    style::Style,
+    widgets::{Block, BorderType, Cell, Row, Table},
 };
 
 pub struct TableData<'a, T> {
-    pub title: &'a str,
-    pub header_cols: Vec<&'a str>,
+    pub title: &'static str,
+    pub header_cols: Vec<&'static str>,
     pub constraint: Vec<Constraint>,
     pub cells: Vec<Row<'a>>,
     pub list: &'a mut StatefulList<T>,
@@ -26,18 +26,33 @@ pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_
     } else {
         Style::new()
     };
+
+    let border_type = if is_active {
+        BorderType::Thick
+    } else {
+        BorderType::Plain
+    };
+
+    let header_style = if is_active {
+        Style::new().bold().yellow()
+    } else {
+        Style::new()
+    };
+
     let row_style = if is_active {
         Style::new().on_dark_gray()
     } else {
         Style::new()
     };
     let table = Table::new(table_data.cells.clone(), table_data.constraint.clone())
-        .header(Row::new(table_data.header_cols.clone()).bold())
+        .header(Row::new(table_data.header_cols.clone()).style(header_style).bottom_margin(1))
         .block(
             Block::bordered()
                 .title(table_data.title)
-                .border_style(border_style),
+                .border_style(border_style)
+                .border_type(border_type),
         )
+        .flex(Flex::Center)
         .row_highlight_style(row_style);
 
     f.render_stateful_widget(table, area, &mut table_data.list.state);
@@ -105,15 +120,42 @@ pub fn draw_known_network(
         .items
         .iter()
         .map(|net| -> Row<'_> {
+            let security = if net.is_psk {
+                "Psk"
+            } else if net.is_eap {
+                "Enterprise"
+            } else if net.secured {
+                "Other"
+            } else {
+                "Open"
+            };
+
+            let (strength, bars) = if let Some(strength) = net.strength {
+                let bars = if strength > 80 {
+                    "󰤨"
+                } else if strength > 60 {
+                    "󰤥"
+                } else if strength > 40 {
+                    "󰤢"
+                } else if strength > 20 {
+                    "󰤟"
+                } else {
+                    "󰤯"
+                };
+                (strength.to_string(), bars)
+            } else {
+                ("Unknown".to_string(), "󰤯")
+            };
+
             Row::new(vec![
                 Cell::from(net.ssid.clone()),
-                Cell::from(if net.secured { "Secured" } else { "Open" }),
+                Cell::from(security),
                 Cell::from(if app.network_manager.is_connected_cached(&net.ssid) {
                     "Connected"
                 } else {
                     "-"
                 }),
-                Cell::from(format!("{}%", net.strength.unwrap_or(0))),
+                Cell::from(format!("{}% {}", strength, bars)),
             ])
         })
         .collect();
@@ -136,7 +178,6 @@ pub fn draw_known_network(
     );
 }
 
-// TODO: make constraint long as it need
 pub fn draw_available_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
@@ -155,18 +196,37 @@ pub fn draw_available_network(
         .items
         .iter()
         .map(|net| -> Row<'_> {
+            let security = if net.is_psk {
+                "Psk"
+            } else if net.is_eap {
+                "Enterprise"
+            } else if net.secured {
+                "Other"
+            } else {
+                "Open"
+            };
+
+            let (strength, bars) = if let Some(strength) = net.strength {
+                let bars = if strength > 80 {
+                    "󰤨"
+                } else if strength > 60 {
+                    "󰤥"
+                } else if strength > 40 {
+                    "󰤢"
+                } else if strength > 20 {
+                    "󰤟"
+                } else {
+                    "󰤯"
+                };
+                (strength.to_string(), bars)
+            } else {
+                ("Unknown".to_string(), "󰤯")
+            };
+
             Row::new(vec![
                 Cell::from(net.ssid.clone()),
-                Cell::from(if net.is_psk {
-                    "psk"
-                } else if net.is_eap {
-                    "Enterprise"
-                } else if !net.secured {
-                    "Open"
-                } else {
-                    "Unknown"
-                }),
-                Cell::from(format!("{}%", net.strength.unwrap_or(0))),
+                Cell::from(security),
+                Cell::from(format!("{}% {}", strength, bars)),
             ])
         })
         .collect();
@@ -177,7 +237,7 @@ pub fn draw_available_network(
             title: " Available Networks ",
             header_cols: vec!["Name", "Security", "Signal"],
             constraint: vec![
-                Constraint::Percentage(40),
+                Constraint::Percentage(60),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
             ],
@@ -188,7 +248,6 @@ pub fn draw_available_network(
     );
 }
 
-// TODO: Add cells
 pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, focus: &Focus) {
     let active = if let Focus::Tab(tab) = focus
         && *tab == Tabs::Devices
@@ -201,14 +260,23 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
         .devices
         .items
         .iter()
-        .map(|net| -> Row<'_> {
+        .map(|dev| -> Row<'_> {
+            let freq = if let Some(current_connection) = &app.network_manager.current_connection {
+                format!("{} MHz", current_connection.frequency.unwrap_or_default())
+            } else {
+                "-".to_string()
+            };
+
             Row::new(vec![
-                Cell::from(net.interface.clone()),
+                Cell::from(dev.interface.clone()),
                 Cell::from(if app.network_manager.enabled {
                     "On"
                 } else {
                     "Off"
                 }),
+                Cell::from(format!("{}", dev.state)),
+                Cell::from(freq),
+                Cell::from(dev.hw_address.to_string()),
             ])
         })
         .collect();
@@ -217,7 +285,14 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
         body_chunks[2],
         &mut TableData {
             title: " Device ",
-            header_cols: vec!["Name", "Powered", "Scanning", "Frequency", "Security"],
+            header_cols: vec![
+                "Name",
+                "Powered",
+                "State",
+                "Frequency",
+                "Address",
+                "Security",
+            ],
             constraint: vec![
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),

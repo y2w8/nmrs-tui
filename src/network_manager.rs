@@ -1,6 +1,7 @@
-use anyhow::{Ok, Result};
+use std::time::Duration;
+
 use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
-use tokio::sync::mpsc::UnboundedSender;
+use tokio::{sync::mpsc::UnboundedSender, time::timeout};
 
 use crate::{app::AppEvent, ui::toast::Urgency};
 
@@ -13,6 +14,7 @@ pub struct NetworkManager {
     pub enabled: bool,
 }
 
+// TODO: AirPlane mode
 impl NetworkManager {
     pub async fn new(event_sender: UnboundedSender<AppEvent>) -> anyhow::Result<Self> {
         let nmrs = nmrs::NetworkManager::new().await?;
@@ -35,7 +37,7 @@ impl NetworkManager {
         self.nmrs.list_wifi_devices().await
     }
 
-    pub async fn scan_networks(&mut self) -> Result<Vec<Network>> {
+    pub async fn scan_networks(&mut self) -> anyhow::Result<Vec<Network>> {
         self.nmrs.scan_networks(None).await?;
         self.current_connection = self.nmrs.current_network().await?;
 
@@ -74,8 +76,13 @@ impl NetworkManager {
         interface: Option<&str>,
         credentials: WifiSecurity,
     ) {
-        match self.nmrs.connect(ssid, interface, credentials).await {
-            std::result::Result::Ok(_) => {
+        match timeout(
+            Duration::from_secs(30),
+            self.nmrs.connect(ssid, interface, credentials),
+        )
+        .await
+        {
+            Ok(Ok(_)) => {
                 let msg = "Connected!";
                 info!("{}", msg);
                 let _ = self.event_sender.send(AppEvent::Toast(
@@ -85,7 +92,7 @@ impl NetworkManager {
                     None,
                 ));
             }
-            Err(ConnectionError::NotFound) => {
+            Ok(Err(ConnectionError::NotFound)) => {
                 let msg = "Network not visible — is it in range?";
                 error!("{}", msg);
                 let _ = self.event_sender.send(AppEvent::Toast(
@@ -95,7 +102,7 @@ impl NetworkManager {
                     None,
                 ));
             }
-            Err(ConnectionError::AuthFailed) => {
+            Ok(Err(ConnectionError::AuthFailed)) => {
                 let _ = self.forget(ssid).await;
                 let msg = "Wrong password!";
                 error!("{}", msg);
@@ -106,7 +113,7 @@ impl NetworkManager {
                     None,
                 ));
             }
-            Err(ConnectionError::Timeout) => {
+            Ok(Err(ConnectionError::Timeout)) => {
                 let msg = "Connection timed out — try increasing the timeout";
                 error!("{}", msg);
                 let _ = self.event_sender.send(AppEvent::Toast(
@@ -116,7 +123,7 @@ impl NetworkManager {
                     None,
                 ));
             }
-            Err(ConnectionError::DhcpFailed) => {
+            Ok(Err(ConnectionError::DhcpFailed)) => {
                 let msg = "Failed to get an IP address";
                 error!("{}", msg);
                 let _ = self.event_sender.send(AppEvent::Toast(
@@ -126,7 +133,7 @@ impl NetworkManager {
                     None,
                 ));
             }
-            Err(e) => {
+            Ok(Err(e)) => {
                 let _ = self.event_sender.send(AppEvent::Toast(
                     None,
                     "Connection failed - check logs".into(),
@@ -134,6 +141,16 @@ impl NetworkManager {
                     None,
                 ));
                 error!("Connection failed: {}", e);
+            }
+            Err(_) => {
+                let msg = "Operation timed out";
+                error!("{}", msg);
+                let _ = self.event_sender.send(AppEvent::Toast(
+                    None,
+                    msg.into(),
+                    Urgency::Critical,
+                    None,
+                ));
             }
         }
     }
@@ -148,5 +165,18 @@ impl NetworkManager {
 
     pub async fn has_saved_connection(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.has_saved_connection(ssid).await
+    }
+
+    pub async fn toggle_network(&mut self) -> anyhow::Result<()> {
+        let enabled = self.nmrs.wifi_state().await?.enabled;
+        self.enabled = !enabled;
+        self.nmrs.set_wireless_enabled(!enabled).await?;
+        self.event_sender.send(AppEvent::Toast(
+            None,
+            format!("Wifi {}", if self.enabled { "On" } else { "Off" }).into(),
+            Urgency::Warning,
+            None,
+        ))?;
+        Ok(())
     }
 }

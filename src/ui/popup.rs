@@ -1,9 +1,9 @@
 use ratatui::{
     Frame,
     layout::{self, Alignment, Constraint, Layout, Rect},
-    style::{Color, Style},
+    style::Style,
     text::{Line, Span},
-    widgets::{self, Block, Paragraph},
+    widgets::{self, Block, BorderType, Paragraph},
 };
 
 use crate::{
@@ -44,12 +44,15 @@ pub fn draw_auth(f: &mut Frame, input: &Input, selected: &Option<Selected>, hidd
     );
 
     if let Some(Selected::Network(net)) = selected {
-        let block = Block::bordered().border_style(Style::default().fg(Color::Yellow).bold());
+        let block = Block::bordered()
+            .border_style(Style::default().green().bold())
+            .border_type(BorderType::Thick);
 
         let title = Line::from(vec![
             Span::raw("Enter the password for "),
             Span::styled(&net.ssid, Style::new().bold()),
-        ]).alignment(Alignment::Center);
+        ])
+        .alignment(Alignment::Center);
 
         let title_widget = Paragraph::new(title).block(block);
         f.render_widget(title_widget, popup_area);
@@ -81,9 +84,6 @@ pub fn draw_auth(f: &mut Frame, input: &Input, selected: &Option<Selected>, hidd
 
         let cx = input_chunks[0].x + input.cx as u16;
         let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1) as u16;
-        f.set_cursor_position(layout::Position::new(
-            cx.min(cx_max),
-            input_chunks[0].y,
-        ))
+        f.set_cursor_position(layout::Position::new(cx.min(cx_max), input_chunks[0].y))
     }
 }
