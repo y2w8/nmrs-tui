@@ -1,52 +1,43 @@
 use std::time::Duration;
 
 use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
-use tokio::{sync::mpsc::UnboundedSender, time::timeout};
-
-use crate::{app::AppEvent, ui::toast::Urgency};
+use tokio::time::{self, timeout};
 
 #[derive(Clone)]
 pub struct NetworkManager {
     pub nmrs: nmrs::NetworkManager,
-    pub event_sender: UnboundedSender<AppEvent>,
-    pub current_connection: Option<Network>,
-    pub _devices: Vec<WifiDevice>,
-    pub enabled: bool,
+    pub current_network: Option<Network>,
 }
 
 // TODO: AirPlane mode
 impl NetworkManager {
-    pub async fn new(event_sender: UnboundedSender<AppEvent>) -> anyhow::Result<Self> {
+    pub async fn new() -> anyhow::Result<Self> {
         let nmrs = nmrs::NetworkManager::new().await?;
-        let current_connection = nmrs.current_network().await?;
-
-        let _devices = nmrs.list_wifi_devices().await?;
-
-        let enabled = nmrs.wifi_state().await?.enabled;
+        let current_network = nmrs.current_network().await?;
 
         Ok(Self {
             nmrs,
-            event_sender,
-            current_connection,
-            _devices,
-            enabled,
+            current_network,
         })
     }
 
-    pub async fn get_devices(&mut self) -> Result<Vec<WifiDevice>, ConnectionError> {
+    pub async fn get_devices(&self) -> Result<Vec<WifiDevice>, ConnectionError> {
         self.nmrs.list_wifi_devices().await
     }
 
-    pub async fn scan_networks(&mut self) -> anyhow::Result<Vec<Network>> {
+    pub async fn current_network(&self) -> Option<Network> {
+        self.nmrs.current_network().await.ok()?
+    }
+
+    pub async fn scan_networks(&self) -> anyhow::Result<Vec<Network>> {
         self.nmrs.scan_networks(None).await?;
-        self.current_connection = self.nmrs.current_network().await?;
 
         let mut networks = self.nmrs.list_networks(None).await?;
         networks.sort_by(|a, b| b.strength.cmp(&a.strength));
         Ok(networks)
     }
 
-    pub async fn networks_list(&mut self) -> anyhow::Result<(Vec<Network>, Vec<Network>)> {
+    pub async fn networks_list(&self) -> Result<(Vec<Network>, Vec<Network>), ConnectionError> {
         let scan_list = self.scan_networks().await.unwrap_or_default();
 
         let mut known_final = Vec::new();
@@ -62,121 +53,36 @@ impl NetworkManager {
         Ok((known_final, new_final))
     }
 
-    pub async fn _saved_connections(&mut self) -> Result<Vec<SavedConnection>, ConnectionError> {
+    pub async fn _saved_connections(&self) -> Result<Vec<SavedConnection>, ConnectionError> {
         self.nmrs.list_saved_connections().await
     }
 
-    pub async fn forget(&mut self, ssid: &str) -> Result<(), ConnectionError> {
+    pub async fn forget(&self, ssid: &str) -> Result<(), ConnectionError> {
         self.nmrs.forget(ssid).await
     }
 
     pub async fn connect(
-        &mut self,
+        &self,
         ssid: &str,
-        interface: Option<&str>,
+        interface: Option<String>,
         credentials: WifiSecurity,
-    ) {
-        match timeout(
+    ) -> Result<Result<(), ConnectionError>, time::error::Elapsed> {
+        timeout(
             Duration::from_secs(30),
-            self.nmrs.connect(ssid, interface, credentials),
+            self.nmrs.connect(ssid, interface.as_deref(), credentials),
         )
         .await
-        {
-            Ok(Ok(_)) => {
-                let msg = "Connected!";
-                info!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Success,
-                    None,
-                ));
-            }
-            Ok(Err(ConnectionError::NotFound)) => {
-                let msg = "Network not visible — is it in range?";
-                error!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Critical,
-                    None,
-                ));
-            }
-            Ok(Err(ConnectionError::AuthFailed)) => {
-                let _ = self.forget(ssid).await;
-                let msg = "Wrong password!";
-                error!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Critical,
-                    None,
-                ));
-            }
-            Ok(Err(ConnectionError::Timeout)) => {
-                let msg = "Connection timed out — try increasing the timeout";
-                error!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Critical,
-                    None,
-                ));
-            }
-            Ok(Err(ConnectionError::DhcpFailed)) => {
-                let msg = "Failed to get an IP address";
-                error!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Critical,
-                    None,
-                ));
-            }
-            Ok(Err(e)) => {
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    "Connection failed - check logs".into(),
-                    Urgency::Critical,
-                    None,
-                ));
-                error!("Connection failed: {}", e);
-            }
-            Err(_) => {
-                let msg = "Operation timed out";
-                error!("{}", msg);
-                let _ = self.event_sender.send(AppEvent::Toast(
-                    None,
-                    msg.into(),
-                    Urgency::Critical,
-                    None,
-                ));
-            }
-        }
     }
 
-    pub async fn _is_connected(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
+    pub async fn _is_connected(&self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.is_connected(ssid).await
     }
 
-    pub fn is_connected_cached(&mut self, ssid: &String) -> bool {
-        self.current_connection.is_some() && self.current_connection.clone().unwrap().ssid == *ssid
-    }
-
-    pub async fn has_saved_connection(&mut self, ssid: &str) -> Result<bool, ConnectionError> {
+    pub async fn has_saved_connection(&self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.has_saved_connection(ssid).await
     }
 
-    pub async fn toggle_network(&mut self) -> anyhow::Result<()> {
-        let enabled = self.nmrs.wifi_state().await?.enabled;
-        self.enabled = !enabled;
-        self.nmrs.set_wireless_enabled(!enabled).await?;
-        self.event_sender.send(AppEvent::Toast(
-            None,
-            format!("Wifi {}", if self.enabled { "On" } else { "Off" }).into(),
-            Urgency::Warning,
-            None,
-        ))?;
-        Ok(())
+    pub async fn disconnect(&self) -> Result<(), ConnectionError> {
+        self.nmrs.disconnect(None).await
     }
 }

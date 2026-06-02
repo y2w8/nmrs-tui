@@ -5,10 +5,22 @@ pub struct StatefulList<T> {
     pub items: Vec<T>,
 }
 impl<T> StatefulList<T> {
-    pub fn with_items(items: Vec<T>) -> Self {
+    pub fn new(items: Vec<T>) -> Self {
+        let mut state = TableState::default();
+        state.select_first();
         Self {
-            state: TableState::default(),
+            state,
             items,
+        }
+    }
+
+    pub fn set_items(&mut self, items: Vec<T>) {
+        self.items = items;
+        // clamp selection to new length, or select first if nothing selected
+        match self.state.selected() {
+            Some(i) if i >= self.items.len() => self.state.select_first(),
+            None => self.state.select_first(),
+            _ => {}
         }
     }
 

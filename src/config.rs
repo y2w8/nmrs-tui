@@ -1,0 +1,65 @@
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::PathBuf,
+};
+
+use ron::{de::{self}, ser::PrettyConfig};
+use ron::ser::{self};
+use serde::{Deserialize, Serialize};
+
+#[derive(Deserialize, Serialize)]
+#[serde(default)]
+pub struct Config {
+    pub int: u16,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self { int: 1 }
+    }
+}
+
+impl Config {
+    fn get_path() -> Option<PathBuf> {
+        dirs::config_dir().map(|mut p| {
+            p.push("nmrs-tui/config.ron");
+            p
+        })
+    }
+
+    pub fn load() -> Result<Self, String> {
+        if let Some(config_path) = Self::get_path()
+            && config_path.exists()
+        {
+            let config_file = File::open(config_path)
+                .map_err(|e| format!("Failed to open config file: {}", e))?;
+
+            let config: Self = de::from_reader(config_file)
+                .map_err(|e| format!("Failed to parse RON config: {}", e))?;
+            Ok(config)
+        } else {
+            Ok(Self::default())
+        }
+    }
+
+    pub fn create(&self) -> Result<(), String> {
+        let config_path = Self::get_path().ok_or("Cannot find config directory!")?;
+
+        if let Some(parent) = config_path.parent() {
+            fs::create_dir_all(parent).map_err(|e| format!("Failed to create directory: {}", e))?;
+        }
+
+        let mut config_file =
+            File::create(config_path).map_err(|e| format!("Failed to create/open file: {}", e))?;
+
+        let pretty = PrettyConfig::new();
+        let ron_string = ser::to_string_pretty(self, pretty)
+            .map_err(|e| format!("Failed to serialize config: {}", e))?;
+
+        config_file
+            .write_all(ron_string.as_bytes())
+            .map_err(|e| format!("Failed to write default config: {}", e))?;
+        Ok(())
+    }
+}

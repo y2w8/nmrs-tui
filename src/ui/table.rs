@@ -1,12 +1,12 @@
 use std::rc::Rc;
 
 use crate::{
-    app::App,
-    tui::{Focus, Tabs},
+    app::{App, Focus, Tabs},
     ui::list::StatefulList,
 };
+use nmrs::DeviceState;
 use ratatui::{
-    Frame, layout::{Constraint, Flex, Rect}, style::Style, text::Line, widgets::{Block, BorderType, Cell, Row, Table}
+    Frame, layout::{Constraint, Flex, Rect}, style::Style, text::Line, widgets::{Block, BorderType, Row, Table}
 };
 
 pub struct TableData<'a, T> {
@@ -56,61 +56,58 @@ pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_
 }
 
 // TODO: this
-pub fn draw_saved_connections(
-    f: &mut Frame<'_>,
-    body_chunks: &Rc<[Rect]>,
-    app: &mut App,
-    active_tab: &Tabs,
-) {
-    let rows: Vec<Row> = app
-        .known_networks
-        .items
-        .iter()
-        .map(|net| -> Row<'_> {
-            Row::new(vec![
-                Line::from(net.ssid.clone()).centered(),
-                Line::from(if net.secured { "Secured" } else { "Open" }).centered(),
-                Line::from(if app.network_manager.is_connected_cached(&net.ssid) {
-                    "Connected"
-                } else {
-                    "-"
-                }).centered(),
-                Line::from(format!("{}%", net.strength.unwrap_or(0))).centered(),
-            ])
-        })
-        .collect();
-    draw(
-        f,
-        body_chunks[0],
-        &mut TableData {
-            title: " Known Networks ",
-            header_cols: vec![
-                Line::from("Name").centered(),
-                Line::from("Security").centered(),
-                Line::from("State").centered(),
-                Line::from("Signal").centered()
-            ],
-            constraint: vec![
-                Constraint::Percentage(40),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-            ],
-            cells: rows,
-            list: &mut app.known_networks,
-        },
-        *active_tab == Tabs::KnownNetworks,
-    );
-}
+// pub fn draw_saved_connections(
+//     f: &mut Frame<'_>,
+//     body_chunks: &Rc<[Rect]>,
+//     app: &mut App,
+// ) {
+//     let rows: Vec<Row> = app
+//         .known_networks
+//         .items
+//         .iter()
+//         .map(|net| -> Row<'_> {
+//             Row::new(vec![
+//                 Line::from(net.ssid.clone()).centered(),
+//                 Line::from(if net.secured { "Secured" } else { "Open" }).centered(),
+//                 Line::from(if app.network_manager.is_connected_cached(&net.ssid) {
+//                     "Connected"
+//                 } else {
+//                     "-"
+//                 }).centered(),
+//                 Line::from(format!("{}%", net.strength.unwrap_or(0))).centered(),
+//             ])
+//         })
+//         .collect();
+//     draw(
+//         f,
+//         body_chunks[0],
+//         &mut TableData {
+//             title: " Known Networks ",
+//             header_cols: vec![
+//                 Line::from("Name").centered(),
+//                 Line::from("Security").centered(),
+//                 Line::from("State").centered(),
+//                 Line::from("Signal").centered()
+//             ],
+//             constraint: vec![
+//                 Constraint::Percentage(40),
+//                 Constraint::Percentage(20),
+//                 Constraint::Percentage(20),
+//                 Constraint::Percentage(20),
+//             ],
+//             cells: rows,
+//             list: &mut app.known_networks,
+//         },
+//     );
+// }
 
 pub fn draw_known_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
     app: &mut App,
-    focus: &Focus,
 ) {
-    let active = if let Focus::Tab(tab) = focus
-        && *tab == Tabs::KnownNetworks
+    let active = if let Focus::Tab(tab) = app.focus
+        && tab == Tabs::KnownNetworks
     {
         true
     } else {
@@ -152,7 +149,7 @@ pub fn draw_known_network(
             Row::new(vec![
                 Line::from(net.ssid.clone()).centered(),
                 Line::from(security).centered(),
-                Line::from(if app.network_manager.is_connected_cached(&net.ssid) {
+                Line::from(if app.network_manager.current_network.as_ref().is_some_and(|current| current.ssid == net.ssid) {
                     "Connected"
                 } else {
                     "-"
@@ -189,10 +186,9 @@ pub fn draw_available_network(
     f: &mut Frame<'_>,
     body_chunks: &Rc<[Rect]>,
     app: &mut App,
-    focus: &Focus,
 ) {
-    let active = if let Focus::Tab(tab) = focus
-        && *tab == Tabs::AvailableNetworks
+    let active = if let Focus::Tab(tab) = app.focus
+        && tab == Tabs::AvailableNetworks
     {
         true
     } else {
@@ -259,9 +255,9 @@ pub fn draw_available_network(
     );
 }
 
-pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, focus: &Focus) {
-    let active = if let Focus::Tab(tab) = focus
-        && *tab == Tabs::Devices
+pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App) {
+    let active = if let Focus::Tab(tab) = app.focus
+        && tab == Tabs::Devices
     {
         true
     } else {
@@ -272,7 +268,7 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
         .items
         .iter()
         .map(|dev| -> Row<'_> {
-            let freq = if let Some(current_connection) = &app.network_manager.current_connection {
+            let freq = if let Some(current_connection) = &app.network_manager.current_network {
                 format!("{} MHz", current_connection.frequency.unwrap_or_default())
             } else {
                 "-".to_string()
@@ -280,7 +276,7 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
 
             Row::new(vec![
                 Line::from(dev.interface.clone()).centered(),
-                Line::from(if app.network_manager.enabled {
+                Line::from(if matches!(dev.state, DeviceState::Disconnected | DeviceState::Activated | DeviceState::Prepare | DeviceState::Config | DeviceState::NeedAuth | DeviceState::IpConfig | DeviceState::IpCheck | DeviceState::Secondaries | DeviceState::Deactivating) {
                     "On"
                 } else {
                     "Off"
@@ -295,7 +291,7 @@ pub fn draw_devices(f: &mut Frame<'_>, body_chunks: &Rc<[Rect]>, app: &mut App, 
         f,
         body_chunks[2],
         &mut TableData {
-            title: " Device ",
+            title: " Devices ",
             header_cols: vec![
                 Line::from("Name").centered(),
                 Line::from("Powered").centered(),

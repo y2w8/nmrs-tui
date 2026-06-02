@@ -1,64 +1,124 @@
-use std::{borrow::Cow, time::Duration};
+use std::time::Duration;
 
 use crate::{
+    action::{Action, Actions},
+    config::Config,
     network_manager::NetworkManager,
-    ui::{list::StatefulList, toast::Urgency},
+    timer::Timer,
+    ui::{input::Input, list::StatefulList, toast::Toast},
 };
 use anyhow::Result;
 use nmrs::{Network, WifiDevice};
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
-pub enum AppEvent {
-    Toast(
-        Option<Cow<'static, str>>,
-        Cow<'static, str>,
-        Urgency,
-        Option<Duration>,
-    ),
-    Refresh,
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Tabs {
+    KnownNetworks,
+    AvailableNetworks,
+    Devices,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Popups {
+    Password,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum Focus {
+    Tab(Tabs),
+    Popup(Popups),
+}
+
+#[derive(Clone)]
+pub enum Selected {
+    Network(Network),
+    Device(WifiDevice),
 }
 
 pub struct App {
-    pub should_quit: bool,
+    pub action: Action,
+    pub config: Config,
     pub network_manager: NetworkManager,
+    pub should_quit: bool,
+
+    // Data
+    pub input: Input,
+    pub focus: Focus,
+    pub last_focus: Focus,
+    pub toasts: Vec<Toast>,
+
+    // Timers
+    pub scan: Timer,
 
     pub known_networks: StatefulList<Network>,
     pub available_networks: StatefulList<Network>,
     pub devices: StatefulList<WifiDevice>,
-
-    pub event_sender: UnboundedSender<AppEvent>,
-    pub event_receiver: UnboundedReceiver<AppEvent>,
 }
 
 impl App {
-    pub async fn new() -> Result<Self> {
-        let (event_sender, event_receiver) = mpsc::unbounded_channel::<AppEvent>();
-        let mut network_manager = NetworkManager::new(event_sender.clone()).await?;
+    pub async fn new(config: Config) -> Result<Self> {
+        let action = Action::new();
+        let network_manager = NetworkManager::new().await?;
 
         let device_list = network_manager.get_devices().await?;
         let (known_networks_list, available_networks_list) =
             network_manager.networks_list().await?;
 
         Ok(Self {
-            should_quit: false,
+            action,
+            config,
             network_manager,
+            should_quit: false,
 
-            known_networks: StatefulList::with_items(known_networks_list),
-            available_networks: StatefulList::with_items(available_networks_list),
-            devices: StatefulList::with_items(device_list),
-            event_sender,
-            event_receiver,
+            // Data
+            input: Input::new(),
+            focus: Focus::Tab(Tabs::KnownNetworks),
+            last_focus: Focus::Tab(Tabs::KnownNetworks),
+            toasts: Vec::new(),
+
+            // Timers
+            scan: Timer::new(Duration::from_secs(3), Actions::Refresh, true),
+
+            known_networks: StatefulList::new(known_networks_list),
+            available_networks: StatefulList::new(available_networks_list),
+            devices: StatefulList::new(device_list),
         })
     }
+    pub fn timers_mut(&mut self) -> Vec<&mut Timer> {
+        vec![&mut self.scan]
+    }
 
-    pub async fn refresh_networks(&mut self) -> Result<()> {
-        let (known_networks, available_networks) = self.network_manager.networks_list().await?;
-        let device_list = self.network_manager.get_devices().await?;
+    pub fn selected(&self) -> Option<Selected> {
+        let focus = match self.focus {
+            // If focus is popup we fallback to last_focus so we can get selected
+            Focus::Popup(_) => self.last_focus,
+            f => f,
+        };
 
-        self.known_networks.items = known_networks;
-        self.available_networks.items = available_networks;
-        self.devices.items = device_list;
-        Ok(())
+        match focus {
+            Focus::Tab(tab) => match tab {
+                Tabs::KnownNetworks => self
+                    .known_networks
+                    .state
+                    .selected()
+                    .and_then(|i| self.known_networks.items.get(i))
+                    .map(|n| Selected::Network(n.clone())),
+
+                Tabs::AvailableNetworks => self
+                    .available_networks
+                    .state
+                    .selected()
+                    .and_then(|i| self.available_networks.items.get(i))
+                    .map(|n| Selected::Network(n.clone())),
+
+                Tabs::Devices => self
+                    .devices
+                    .state
+                    .selected()
+                    .and_then(|i| self.devices.items.get(i))
+                    .map(|d| Selected::Device(d.clone())),
+            },
+            Focus::Popup(_) => None,
+        }
     }
 
     pub fn quit(&mut self) {

@@ -1,4 +1,4 @@
-#[derive(PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum InputMode {
     Normal,
     Editing,
@@ -20,12 +20,6 @@ impl Input {
             hidden_password: true,
             cx: 0,
         }
-    }
-
-    pub fn change_mode(&mut self, new_mode: InputMode) {
-        self.mode = new_mode;
-        self.value.clear();
-        self.reset_cursor();
     }
 
     pub fn move_cursor_left(&mut self) {

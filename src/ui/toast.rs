@@ -34,9 +34,9 @@ pub struct Toast {
 }
 
 impl Toast {
-    pub fn new<S>(title: Option<S>, msg: S, urgency: Urgency, duration: Option<Duration>) -> Self
+    pub fn new<T>(title: Option<T>, msg: T, urgency: Urgency, duration: Option<Duration>) -> Self
     where
-        S: Into<Cow<'static, str>>,
+        T: Into<Cow<'static, str>>,
     {
         let default_duration = match urgency {
             Urgency::Normal | Urgency::Success => Duration::from_secs_f32(3.0),

@@ -4,7 +4,6 @@ use crossterm::{
     event::{self, Event},
     terminal::{self, LeaveAlternateScreen, disable_raw_mode, enable_raw_mode},
 };
-use nmrs::{Network, WifiDevice};
 use ratatui::{
     Terminal,
     backend::CrosstermBackend,
@@ -12,58 +11,26 @@ use ratatui::{
 };
 use std::{
     io::stdout,
-    time::{self, Duration},
+    time::{self},
 };
 
 use crate::{
-    app::{App, AppEvent},
+    action::{Action, Actions},
+    app::{App, Focus, Popups, Selected},
     events,
     ui::{
         help,
-        input::{Input},
         popup, table,
-        toast::{self, Toast},
+        toast::{self, Urgency},
     },
 };
 
-#[derive(Clone, Copy, PartialEq)]
-pub enum Tabs {
-    KnownNetworks,
-    AvailableNetworks,
-    Devices,
-}
-
-#[derive(Clone, Copy, PartialEq)]
-pub enum Popups {
-    Password,
-}
-
-#[derive(Clone, Copy)]
-pub enum Focus {
-    Tab(Tabs),
-    Popup(Popups),
-}
-
-#[derive(Clone)]
-pub enum Selected {
-    Network(Network),
-    Device(WifiDevice),
-}
-
 pub struct Tui {
     pub terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
-
-    pub input: Input,
-    pub focus: Focus,
-    pub last_focus: Focus,
-    pub selected: Option<Selected>,
-    pub toasts: Vec<Toast>,
-
-    pub scan: bool,
 }
 
 impl Tui {
-    pub fn new(app: &mut App) -> anyhow::Result<Self> {
+    pub fn new() -> anyhow::Result<Self> {
         let mut stdout = stdout();
         enable_raw_mode()?;
         stdout
@@ -73,79 +40,13 @@ impl Tui {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        app.known_networks.state.select_first();
-        app.available_networks.state.select_first();
-        app.devices.state.select_first();
-
-        Ok(Tui {
-            terminal,
-
-            input: Input::new(),
-            focus: Focus::Tab(Tabs::KnownNetworks),
-            last_focus: Focus::Tab(Tabs::KnownNetworks),
-            selected: None,
-            toasts: Vec::new(),
-
-            scan: true,
-        })
-    }
-
-    pub fn update_selected(&mut self, app: &App) {
-        self.selected = match self.focus {
-            Focus::Tab(tab) => match tab {
-                Tabs::AvailableNetworks => app
-                    .available_networks
-                    .state
-                    .selected()
-                    .and_then(|i| app.available_networks.items.get(i))
-                    .map(|n| Selected::Network(n.clone())),
-
-                Tabs::KnownNetworks => app
-                    .known_networks
-                    .state
-                    .selected()
-                    .and_then(|i| app.known_networks.items.get(i))
-                    .map(|n| Selected::Network(n.clone())),
-
-                Tabs::Devices => app
-                    .devices
-                    .state
-                    .selected()
-                    .and_then(|i| app.devices.items.get(i))
-                    .map(|d| Selected::Device(d.clone())),
-            },
-            Focus::Popup(_) => None,
-        };
-    }
-
-    pub fn change_focus(&mut self, new_focus: Focus) {
-        self.last_focus = self.focus;
-        self.focus = new_focus;
+        Ok(Tui { terminal })
     }
 
     pub async fn run(&mut self, app: &mut App) -> Result<()> {
         let mut last_tick = time::Instant::now();
-        let mut rescan_timer = Duration::from_secs(10);
-        self.update_selected(app);
 
         while !app.should_quit {
-            let now = time::Instant::now();
-            let delta = now.saturating_duration_since(last_tick);
-            last_tick = now;
-
-            // Toast duration timer
-            self.toasts.iter_mut().for_each(|toast| {
-                toast.duration = toast.duration.saturating_sub(delta);
-            });
-            self.toasts.retain(|toast| !toast.duration.is_zero());
-
-            // Rescan timer
-            rescan_timer = rescan_timer.saturating_sub(delta);
-            if rescan_timer.is_zero() {
-                app.event_sender.send(AppEvent::Refresh)?;
-                rescan_timer = Duration::from_secs(10);
-            }
-
             self.terminal.draw(|f| {
                 let size = f.area();
 
@@ -165,43 +66,44 @@ impl Tui {
                 )
                 .split(main_chunks[1]);
 
-                table::draw_known_network(f, &body_chunks, app, &self.focus);
-                table::draw_available_network(f, &body_chunks, app, &self.focus);
-                table::draw_devices(f, &body_chunks, app, &self.focus);
-                help::draw(f, body_chunks[3], &self.focus);
+                table::draw_known_network(f, &body_chunks, app);
+                table::draw_available_network(f, &body_chunks, app);
+                table::draw_devices(f, &body_chunks, app);
+                help::draw(f, body_chunks[3], app.focus);
 
-                if let Focus::Popup(popup) = self.focus {
+                if let Focus::Popup(popup) = app.focus {
                     match popup {
-                        Popups::Password => popup::draw_auth(
-                            f,
-                            &self.input,
-                            &self.selected,
-                            self.input.hidden_password,
-                        ),
-                    }
-                }
-
-                toast::draw(f, &self.toasts);
-            })?;
-
-            while let std::result::Result::Ok(event) = app.event_receiver.try_recv() {
-                match event {
-                    AppEvent::Toast(title, msg, urgency, duration) => {
-                        self.toasts.push(Toast::new(title, msg, urgency, duration));
-                    }
-                    AppEvent::Refresh => {
-                        if self.scan {
-                            app.refresh_networks().await?;
-                            self.update_selected(app);
+                        Popups::Password => {
+                            if let Some(Selected::Network(net)) = app.selected() {
+                                popup::draw_auth(f, &app.input, net, app.input.hidden_password)
+                            } else {
+                                app.action.send(Actions::ShowToast(
+                                    None,
+                                    "Can't find selected network".into(),
+                                    Urgency::Critical,
+                                    None,
+                                ));
+                                app.action.send(Actions::SetFocus(app.last_focus));
+                            }
                         }
                     }
                 }
-            }
+
+                toast::draw(f, &app.toasts);
+            })?;
+
+            let now = time::Instant::now();
+            let delta = now.saturating_duration_since(last_tick);
+            last_tick = now;
+
+            app.action.send(Actions::Tick(delta));
+
+            Action::handle_actions(app).await?;
 
             if event::poll(std::time::Duration::from_millis(200))?
                 && let Event::Key(key) = event::read()?
             {
-                events::handle_events(app, self, key).await?;
+                events::handle_events(app, key).await?;
             }
         }
 
