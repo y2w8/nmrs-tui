@@ -5,7 +5,24 @@ run:
   cargo run
 
 debug:
-  RUST_LOG=debug cargo run
+  NMRS_LOG=trace cargo run
 
-deploy:
-  cargo build --release
+check:
+  cargo check
+
+package:
+  cargo package
+
+publish:
+  cargo publish
+
+release level="patch":
+  cargo release {{level}} --execute
+
+fmt:
+    cargo fmt --all
+
+lint:
+    cargo clippy --all-targets --all-features -- -D warnings
+
+ci: fmt lint

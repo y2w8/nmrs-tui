@@ -9,11 +9,12 @@ use ratatui::{
 };
 
 use crate::ui::{
-    Gaps, Position,
+    Margin, Position,
     popup::{self, Options},
 };
 
-#[derive(Clone, Copy, PartialEq)]
+#[allow(dead_code)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Urgency {
     Normal,
     Success,
@@ -65,13 +66,13 @@ impl Toast {
 
 pub fn draw(f: &mut Frame, toasts: &[Toast]) {
     for (index, toast) in toasts.iter().enumerate() {
-        let area = popup::popup_area(
+        let area = popup::popup_rect(
             f,
             Options {
-                width: 3 + toast.msg.chars().count() as u16,
-                height: 4,
+                width: 4 + toast.msg.chars().count() as u16, // 4 = borders(2) + padding(2)
+                height: 4,                                   // 4 = borders(2) + title(1) + msg(1)
                 position: Position::RightTop,
-                gaps: Gaps {
+                margin: Margin {
                     top: 1 + (index as u16 * 4),
                     right: 1,
                     ..Default::default()
@@ -96,7 +97,7 @@ pub fn draw(f: &mut Frame, toasts: &[Toast]) {
         let title = Line::raw(toast.title.as_ref())
             .style(title_style.bold())
             .alignment(Alignment::Center);
-        let msg = Line::raw(toast.msg.as_ref());
+        let msg = Line::raw(toast.msg.as_ref()).alignment(Alignment::Center);
 
         let block = Block::bordered()
             .border_style(border_style)

@@ -7,33 +7,25 @@ use ratatui::{
     widgets::{self, Block, BorderType, Paragraph},
 };
 
-use crate::
-    ui::{self, Gaps, Position, input::Input}
-;
+use crate::ui::{self, Margin, Position, input::Input};
 
 #[derive(Default)]
 pub struct Options {
-    /// width of the popup.
     pub width: u16,
-
-    /// height of the popup.
     pub height: u16,
-
-    /// position of the popup.
     pub position: Position,
-
-    /// gaps of the popup.
-    pub gaps: Gaps,
+    pub margin: Margin,
 }
 
-pub fn popup_area(f: &mut Frame, opt: Options) -> Rect {
-    let area = ui::position_rect(f.area(), opt.width, opt.height, opt.position, opt.gaps);
+pub fn popup_rect(f: &mut Frame, opt: Options) -> Rect {
+    let area = ui::anchor_rect(f.area(), opt.width, opt.height, opt.position, opt.margin);
     f.render_widget(widgets::Clear, area); // Clear the area behind it
     area
 }
 
-pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, hidden_password: bool) {
-    let popup_area = popup_area(
+// TODO: padding.
+pub fn draw_auth(f: &mut Frame, input: &Input, network: Network) {
+    let popup_rect = popup_rect(
         f,
         Options {
             width: 60,
@@ -54,12 +46,12 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, hidden_password
     .alignment(Alignment::Center);
 
     let title_widget = Paragraph::new(title).block(block);
-    f.render_widget(title_widget, popup_area);
+    f.render_widget(title_widget, popup_rect);
 
     let input_area = Rect::new(
-        popup_area.x + 1,
-        popup_area.y + 3,
-        popup_area.width.saturating_sub(2),
+        popup_rect.x + 1,
+        popup_rect.y + 3,
+        popup_rect.width.saturating_sub(2),
         1,
     );
 
@@ -69,7 +61,7 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, hidden_password
     ])
     .split(input_area);
 
-    let (password, icon): (String, &'static str) = if hidden_password {
+    let (password, icon): (String, &'static str) = if input.hidden_password {
         (input.value.chars().map(|_| '*').collect(), " 󰈉  ")
     } else {
         (input.value.to_string(), " 󰈈   ")
@@ -81,7 +73,10 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, hidden_password
     let icon_widget = Paragraph::new(icon).style(Style::new().green());
     f.render_widget(icon_widget, input_chunks[1]);
 
+    // Cursor position x
     let cx = input_chunks[0].x + input.cx as u16;
-    let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1) as u16;
+
+    // cx_max = position + width - 1 (so the cursor does overlap on eye icon) 
+    let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1); 
     f.set_cursor_position(layout::Position::new(cx.min(cx_max), input_chunks[0].y))
 }

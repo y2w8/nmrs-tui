@@ -1,7 +1,7 @@
 use std::time::Duration;
 
 use crate::{
-    action::{Action, Actions},
+    action::{Action, ActionHandler},
     config::Config,
     network_manager::NetworkManager,
     timer::Timer,
@@ -20,6 +20,7 @@ pub enum Tabs {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Popups {
     Password,
+    EditNetwork,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -31,12 +32,12 @@ pub enum Focus {
 #[derive(Clone)]
 pub enum Selected {
     Network(Network),
-    Device(WifiDevice),
+    Device(()),
 }
 
 pub struct App {
-    pub action: Action,
-    pub config: Config,
+    pub action: ActionHandler,
+    pub _config: Config,
     pub network_manager: NetworkManager,
     pub should_quit: bool,
 
@@ -55,8 +56,8 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(config: Config) -> Result<Self> {
-        let action = Action::new();
+    pub async fn new(_config: Config) -> Result<Self> {
+        let action = ActionHandler::new();
         let network_manager = NetworkManager::new().await?;
 
         let device_list = network_manager.get_devices().await?;
@@ -65,7 +66,7 @@ impl App {
 
         Ok(Self {
             action,
-            config,
+            _config,
             network_manager,
             should_quit: false,
 
@@ -76,7 +77,7 @@ impl App {
             toasts: Vec::new(),
 
             // Timers
-            scan: Timer::new(Duration::from_secs(3), Actions::Refresh, true),
+            scan: Timer::new(Duration::from_secs(3), Action::Refresh, true),
 
             known_networks: StatefulList::new(known_networks_list),
             available_networks: StatefulList::new(available_networks_list),
@@ -115,7 +116,7 @@ impl App {
                     .state
                     .selected()
                     .and_then(|i| self.devices.items.get(i))
-                    .map(|d| Selected::Device(d.clone())),
+                    .map(|_d| Selected::Device(())),
             },
             Focus::Popup(_) => None,
         }

@@ -1,5 +1,6 @@
-use std::time::Duration;
+use std::{cmp::Reverse, time::Duration};
 
+use anyhow::Context;
 use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
 use tokio::time::{self, timeout};
 
@@ -30,10 +31,13 @@ impl NetworkManager {
     }
 
     pub async fn scan_networks(&self) -> anyhow::Result<Vec<Network>> {
-        self.nmrs.scan_networks(None).await?;
+        self.nmrs
+            .scan_networks(None)
+            .await
+            .context("Failed to trigger WiFi scan via NetworkManager")?;
 
         let mut networks = self.nmrs.list_networks(None).await?;
-        networks.sort_by(|a, b| b.strength.cmp(&a.strength));
+        networks.sort_by_key(|b| Reverse(b.strength));
         Ok(networks)
     }
 
@@ -44,7 +48,7 @@ impl NetworkManager {
         let mut new_final = Vec::new();
 
         for net in &scan_list {
-            if self.has_saved_connection(&net.ssid).await? {
+            if net.known {
                 known_final.push(net.clone());
             } else {
                 new_final.push(net.clone());
@@ -61,6 +65,7 @@ impl NetworkManager {
         self.nmrs.forget(ssid).await
     }
 
+    // TODO: auto connect.
     pub async fn connect(
         &self,
         ssid: &str,
@@ -78,6 +83,7 @@ impl NetworkManager {
         self.nmrs.is_connected(ssid).await
     }
 
+    #[allow(dead_code)]
     pub async fn has_saved_connection(&self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.has_saved_connection(ssid).await
     }

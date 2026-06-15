@@ -10,13 +10,12 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
 #[serde(default)]
-pub struct Config {
-    pub int: u16,
-}
+pub struct Config {}
 
+#[allow(clippy::derivable_impls)]
 impl Default for Config {
     fn default() -> Self {
-        Self { int: 1 }
+        Self {}
     }
 }
 

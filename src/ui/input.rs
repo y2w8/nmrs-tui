@@ -8,7 +8,7 @@ pub struct Input {
     pub mode: InputMode,
     pub value: String,
     pub hidden_password: bool,
-    // cursor postion x.
+    /// Cursor postion x.
     pub cx: usize,
 }
 

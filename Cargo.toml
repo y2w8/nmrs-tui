@@ -1,17 +1,27 @@
 [package]
 name = "nmrs-tui"
 version = "0.1.0"
+license = "GPL-3.0"
+description = "A fast, keyboard-first TUI for NetworkManager — built in Rust."
+authors = ["Yousef Al-Harbi <yousefalharby416@gmail.com>"]
+repository = "https://github.com/y2w8/nmrs-tui"
 edition = "2024"
+rust-version = "1.96.0"
+readme = "README.md"
+keywords = ["networkmanager", "tui", "linux"]
+categories = ["tui"]
 
 [dependencies]
 anyhow = "1.0.102"
-crossterm = "0.29.0"
-ratatui = "0.30.0"
+crossterm = { version = "0.29.0", features = ["event-stream"] }
+ratatui = "0.30.1"
 serde = "1.0.228"
-tokio = { version = "1.50.0", features = ["rt-multi-thread", "macros"] }
-nmrs = { git = "https://github.com/cachebag/nmrs.git" }
-zbus = "5.15.0"
-log = "0.4.29"
+tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
+nmrs = { git = "https://github.com/networkmanager-rs/nmrs", rev = "b6cbb46ce2a3e0259a7e0c2bbcb859fede083315" }
+bitflags = "2.13.0"
+zbus = "5.16.0"
+log = "0.4.32"
 simplelog = "0.12.2"
 dirs = "6.0.0"
 ron = "0.12.1"

@@ -9,11 +9,13 @@ pub struct Args {
 }
 
 pub struct Cli {
-    pub args: Args
+    pub args: Args,
 }
 
 impl Cli {
     pub fn new() -> Self {
-        Self { args: Args::parse() }
+        Self {
+            args: Args::parse(),
+        }
     }
 }

@@ -11,8 +11,8 @@ use crate::{
     },
 };
 
-#[derive(Clone)]
-pub enum Actions {
+#[derive(Debug, Clone)]
+pub enum Action {
     Quit,
     Tick(Duration),
     Refresh,
@@ -20,9 +20,11 @@ pub enum Actions {
     SetInputMode(InputMode),
 
     // Network Commands
-    NetworkScanResult(Vec<Network>, Vec<Network>, Vec<WifiDevice>),
-    Connect(String, Option<String>, WifiSecurity),
+    NetworkScanResult(Box<(Vec<Network>, Vec<Network>, Vec<WifiDevice>)>),
+    Connect(Box<(String, Option<String>, WifiSecurity)>),
     Forget(String),
+    #[allow(dead_code)]
+    EditNetwork(String),
     TogglePower,
     Disconnect,
 
@@ -37,24 +39,24 @@ pub enum Actions {
     ),
 }
 
-pub struct Action {
-    tx: UnboundedSender<Actions>,
-    rx: UnboundedReceiver<Actions>,
+pub struct ActionHandler {
+    tx: UnboundedSender<Action>,
+    rx: UnboundedReceiver<Action>,
 }
 
-impl Action {
+impl ActionHandler {
     pub fn new() -> Self {
-        let (tx, rx) = mpsc::unbounded_channel::<Actions>();
+        let (tx, rx) = mpsc::unbounded_channel::<Action>();
 
         Self { tx, rx }
     }
 
     /// Returns action_tx.
-    pub fn sender(&self) -> UnboundedSender<Actions> {
+    pub fn sender(&self) -> UnboundedSender<Action> {
         self.tx.clone()
     }
 
-    pub fn send(&self, action: Actions) {
+    pub fn send(&self, action: Action) {
         match self.tx.send(action) {
             Ok(_) => {}
             Err(e) => {
@@ -63,19 +65,13 @@ impl Action {
         }
     }
 
-    pub fn drain(&mut self) -> Vec<Actions> {
-        let mut actions: Vec<Actions> = Vec::new();
-        while let Ok(action) = self.rx.try_recv() {
-            actions.push(action);
-        }
-        actions
-    }
-
     pub async fn handle_actions(app: &mut App) -> anyhow::Result<()> {
-        for action in app.action.drain() {
+        while let Ok(action) = app.action.rx.try_recv() {
+            debug!("Action: {:?}", action);
+
             match action {
-                Actions::Quit => app.quit(),
-                Actions::Tick(delta) => {
+                Action::Quit => app.quit(),
+                Action::Tick(delta) => {
                     // Toast duration timer
                     app.toasts.iter_mut().for_each(|toast| {
                         toast.duration = toast.duration.saturating_sub(delta);
@@ -83,7 +79,7 @@ impl Action {
                     app.toasts.retain(|toast| !toast.duration.is_zero());
 
                     // Timers
-                    let finished: Vec<Actions> = app
+                    let finished: Vec<Action> = app
                         .timers_mut()
                         .into_iter()
                         .filter(|t| t.enabled)
@@ -102,7 +98,7 @@ impl Action {
                         app.action.send(action);
                     }
                 }
-                Actions::Refresh => {
+                Action::Refresh => {
                     if app.scan.enabled {
                         let action_tx = app.action.sender();
                         let network_manager = app.network_manager.clone();
@@ -112,23 +108,28 @@ impl Action {
                                 network_manager.get_devices()
                             ) {
                                 Ok(((known, available), devices)) => {
-                                    let _ = action_tx.send(Actions::NetworkScanResult(
+                                    let _ = action_tx.send(Action::NetworkScanResult(Box::new((
                                         known, available, devices,
-                                    ));
+                                    ))));
                                 }
-                                Err(e) => {
-                                    error!("Refresh Failed: {}", e)
+                                Err(_) => {
+                                    let _ = action_tx.send(Action::ShowToast(
+                                        None,
+                                        "Refresh failed!".into(),
+                                        Urgency::Critical,
+                                        None,
+                                    ));
                                 }
                             }
                         });
                     }
                 }
-                Actions::SetFocus(new_focus) => {
+                Action::SetFocus(new_focus) => {
                     debug!("Set focus to: {:?}!", new_focus);
                     app.last_focus = app.focus;
                     app.focus = new_focus;
                 }
-                Actions::SetInputMode(new_inputmode) => {
+                Action::SetInputMode(new_inputmode) => {
                     debug!("Set InputMode to: {:?}!", new_inputmode);
                     app.input.mode = new_inputmode;
                     app.input.value.clear();
@@ -136,7 +137,8 @@ impl Action {
                 }
 
                 // Network
-                Actions::NetworkScanResult(known, available, devices) => {
+                Action::NetworkScanResult(box_data) => {
+                    let (known, available, devices) = *box_data;
                     app.network_manager.current_network =
                         app.network_manager.current_network().await;
 
@@ -144,143 +146,124 @@ impl Action {
                     app.available_networks.set_items(available);
                     app.devices.set_items(devices);
                 }
-                Actions::Connect(ssid, interface, credentials) => {
-                    let msg = format!("Connecting to {}...", ssid);
-                    debug!("{}", msg);
-                    app.action
-                        .send(Actions::ShowToast(None, msg.into(), Urgency::Normal, None));
+                Action::Connect(box_data) => {
+                    let (ssid, interface, credentials) = *box_data;
+                    app.action.send(Action::ShowToast(
+                        None,
+                        format!("Connecting to {}...", ssid).into(),
+                        Urgency::Normal,
+                        None,
+                    ));
 
                     let action_tx = app.action.sender();
                     let network_manager = app.network_manager.clone();
                     tokio::spawn(async move {
+                        let msg;
+                        let urgency;
                         match network_manager.connect(&ssid, interface, credentials).await {
                             Ok(Ok(_)) => {
-                                let msg = "Connected!";
-                                info!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Success,
-                                    None,
-                                ));
+                                msg = "Connected!";
+                                urgency = Urgency::Success;
                             }
                             Ok(Err(ConnectionError::NotFound)) => {
-                                let msg = "Network not visible — is it in range?";
-                                error!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
+                                msg = "Network not visible — is it in range?";
+                                urgency = Urgency::Critical;
                             }
                             Ok(Err(ConnectionError::AuthFailed)) => {
-                                let _ = action_tx.send(Actions::Forget(ssid.to_string()));
-                                let msg = "Wrong password!";
-                                error!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
+                                let _ = action_tx.send(Action::Forget(ssid.to_string()));
+                                msg = "Wrong password!";
+                                urgency = Urgency::Critical;
                             }
                             Ok(Err(ConnectionError::Timeout)) => {
-                                let msg = "Connection timed out — try increasing the timeout";
-                                error!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
+                                msg = "Connection timed out — try increasing the timeout";
+                                urgency = Urgency::Critical;
                             }
                             Ok(Err(ConnectionError::DhcpFailed)) => {
-                                let msg = "Failed to get an IP address";
-                                error!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
+                                msg = "Failed to get an IP address";
+                                urgency = Urgency::Critical;
                             }
-                            Ok(Err(e)) => {
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    "Connection failed - check logs".into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
-                                error!("Connection failed: {}", e);
+                            Ok(Err(_)) => {
+                                msg = "Connection failed!";
+                                urgency = Urgency::Critical;
                             }
                             Err(_) => {
-                                let msg = "Operation timed out!";
+                                msg = "Operation timed out!";
+                                urgency = Urgency::Critical;
                                 error!("{}", msg);
-                                let _ = action_tx.send(Actions::ShowToast(
-                                    None,
-                                    msg.into(),
-                                    Urgency::Critical,
-                                    None,
-                                ));
                             }
                         }
+                        let _ = action_tx.send(Action::ShowToast(None, msg.into(), urgency, None));
                     });
                 }
-                Actions::Forget(ssid) => {
+                Action::Forget(ssid) => {
                     let network_manager = app.network_manager.clone();
                     let action_tx = app.action.sender();
                     tokio::spawn(async move {
-                        if let Err(e) = network_manager.forget(&ssid).await {
-                            error!("Forget failed: {}", e);
+                        if network_manager.forget(&ssid).await.is_err() {
+                            let _ = action_tx.send(Action::ShowToast(
+                                None,
+                                "Forget failed!".into(),
+                                Urgency::Critical,
+                                None,
+                            ));
                         }
-                        let _ = action_tx.send(Actions::Refresh);
+                        let _ = action_tx.send(Action::Refresh);
                     });
                 }
-                Actions::TogglePower => {
+                // TODO: EditNetwork
+                Action::EditNetwork(_) => {}
+                Action::TogglePower => {
                     let network_manager = app.network_manager.clone();
                     let action_tx = app.action.sender();
                     tokio::spawn(async move {
                         let enabled = network_manager.nmrs.wifi_state().await.unwrap().enabled;
-                        if let Err(e) = network_manager.nmrs.set_wireless_enabled(!enabled).await {
-                            debug!("Toggle power failed: {}", e)
+                        let msg;
+                        let urgency;
+
+                        if network_manager
+                            .nmrs
+                            .set_wireless_enabled(!enabled)
+                            .await
+                            .is_err()
+                        {
+                            msg = "Toggle power failed!".to_string();
+                            urgency = Urgency::Critical;
+                        } else {
+                            msg = format!("Wifi {}", if !enabled { "On" } else { "Off" });
+                            urgency = Urgency::Success;
                         };
-
-                        let msg = format!("Wifi {}", if !enabled { "On" } else { "Off" });
-
-                        debug!("{}!", msg);
-                        let _ = action_tx.send(Actions::ShowToast(
-                            None,
-                            msg.into(),
-                            Urgency::Warning,
-                            None,
-                        ));
-                        let _ = action_tx.send(Actions::Refresh);
+                        let _ = action_tx.send(Action::ShowToast(None, msg.into(), urgency, None));
+                        let _ = action_tx.send(Action::Refresh);
                     });
                 }
-                Actions::Disconnect => {
+                Action::Disconnect => {
                     let network_manager = app.network_manager.clone();
                     let action_tx = app.action.sender();
                     tokio::spawn(async move {
-                        if let Err(e) = network_manager.disconnect().await {
-                            error!("Disconnect failed: {}", e);
+                        if network_manager.disconnect().await.is_err() {
+                            let _ = action_tx.send(Action::ShowToast(
+                                None,
+                                "Disconnect failed!".into(),
+                                Urgency::Critical,
+                                None,
+                            ));
                         }
-                        let _ = action_tx.send(Actions::Refresh);
+                        let _ = action_tx.send(Action::Refresh);
                     });
                 }
 
                 // UI
-                Actions::NextItem(tab) => match tab {
+                Action::NextItem(tab) => match tab {
                     Tabs::KnownNetworks => app.known_networks.next(),
                     Tabs::AvailableNetworks => app.available_networks.next(),
                     Tabs::Devices => app.devices.next(),
                 },
-                Actions::PreviousItem(tab) => match tab {
+                Action::PreviousItem(tab) => match tab {
                     Tabs::KnownNetworks => app.known_networks.previous(),
                     Tabs::AvailableNetworks => app.available_networks.previous(),
                     Tabs::Devices => app.devices.previous(),
                 },
-                Actions::ShowToast(title, msg, urgency, duration) => {
+                Action::ShowToast(title, msg, urgency, duration) => {
                     app.toasts.push(Toast::new(title, msg, urgency, duration));
                 }
             }

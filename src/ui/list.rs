@@ -8,10 +8,7 @@ impl<T> StatefulList<T> {
     pub fn new(items: Vec<T>) -> Self {
         let mut state = TableState::default();
         state.select_first();
-        Self {
-            state,
-            items,
-        }
+        Self { state, items }
     }
 
     pub fn set_items(&mut self, items: Vec<T>) {

@@ -4,18 +4,19 @@ use anyhow::Result;
 extern crate log;
 extern crate simplelog;
 
+mod action;
 mod app;
 mod cli;
 mod config;
 mod events;
 mod logger;
 mod network_manager;
+mod timer;
 mod tui;
 mod ui;
-mod action;
-mod timer;
 
 use app::App;
+use log::logger;
 use tui::Tui;
 
 use crate::{cli::Cli, config::Config};
@@ -33,7 +34,13 @@ async fn main() -> Result<()> {
         let mut tui = Tui::new()?;
 
         // Start TUI
-        tui.run(&mut app).await?;
+        if let Err(e) = tui.run(&mut app).await {
+            tui.cleanup()?;
+
+            error!("Fatal error: {:#}", e);
+            logger().flush();
+            return Err(e);
+        }
     }
 
     Ok(())
