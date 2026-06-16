@@ -3,7 +3,11 @@ use crate::{
     ui::{self, Margin, list::StatefulList},
 };
 use ratatui::{
-    Frame, layout::{Constraint, Flex, Rect}, style::Style, text::Line, widgets::{Block, BorderType, Row, Table}
+    Frame,
+    layout::{Constraint, Flex, Rect},
+    style::Style,
+    text::Line,
+    widgets::{Block, BorderType, Row, Table},
 };
 
 pub struct TableData<'a, T> {
@@ -39,7 +43,11 @@ pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_
         Style::new()
     };
     let table = Table::new(table_data.cells.clone(), table_data.constraint.clone())
-        .header(Row::new(table_data.header_cols.clone()).style(header_style).bottom_margin(1))
+        .header(
+            Row::new(table_data.header_cols.clone())
+                .style(header_style)
+                .bottom_margin(1),
+        )
         .block(
             Block::bordered()
                 .title(table_data.title)
@@ -221,14 +229,7 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .map(|dev| -> Row<'_> {
             Row::new(vec![
                 Line::from(dev.interface.clone()).centered(),
-                Line::from(
-                    if dev.state.is_enabled() {
-                        "On"
-                    } else {
-                        "Off"
-                    },
-                )
-                .centered(),
+                Line::from(if dev.state.is_enabled() { "On" } else { "Off" }).centered(),
                 Line::from(format!("{}", dev.state)).centered(),
                 Line::from(format!("{} MHz", dev.active_frequency_mhz.unwrap_or(0))).centered(),
                 Line::from(dev.hw_address.to_string()).centered(),

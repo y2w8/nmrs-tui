@@ -76,7 +76,7 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network) {
     // Cursor position x
     let cx = input_chunks[0].x + input.cx as u16;
 
-    // cx_max = position + width - 1 (so the cursor does overlap on eye icon) 
-    let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1); 
+    // cx_max = position + width - 1 (so the cursor does overlap on eye icon)
+    let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1);
     f.set_cursor_position(layout::Position::new(cx.min(cx_max), input_chunks[0].y))
 }

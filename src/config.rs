@@ -4,8 +4,11 @@ use std::{
     path::PathBuf,
 };
 
-use ron::{de::{self}, ser::PrettyConfig};
 use ron::ser::{self};
+use ron::{
+    de::{self},
+    ser::PrettyConfig,
+};
 use serde::{Deserialize, Serialize};
 
 #[derive(Deserialize, Serialize)]
