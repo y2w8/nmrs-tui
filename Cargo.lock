@@ -1177,8 +1177,8 @@ dependencies = [
 
 [[package]]
 name = "nmrs"
-version = "3.2.0"
-source = "git+https://github.com/networkmanager-rs/nmrs?rev=b6cbb46ce2a3e0259a7e0c2bbcb859fede083315#b6cbb46ce2a3e0259a7e0c2bbcb859fede083315"
+version = "3.2.1"
+source = "git+https://github.com/networkmanager-rs/nmrs?rev=1c8216d763a697e30ea6413e12b4b220fb38384c#1c8216d763a697e30ea6413e12b4b220fb38384c"
 dependencies = [
  "async-trait",
  "base64",

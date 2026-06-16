@@ -2,7 +2,6 @@ use crate::{
     app::{App, Focus, Tabs},
     ui::{self, Margin, list::StatefulList},
 };
-use nmrs::DeviceState;
 use ratatui::{
     Frame, layout::{Constraint, Flex, Rect}, style::Style, text::Line, widgets::{Block, BorderType, Row, Table}
 };
@@ -220,27 +219,10 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .items
         .iter()
         .map(|dev| -> Row<'_> {
-            let freq = if let Some(current_connection) = &app.network_manager.current_network {
-                format!("{} MHz", current_connection.frequency.unwrap_or_default())
-            } else {
-                "-".to_string()
-            };
-
             Row::new(vec![
                 Line::from(dev.interface.clone()).centered(),
                 Line::from(
-                    if matches!(
-                        dev.state,
-                        DeviceState::Disconnected
-                            | DeviceState::Activated
-                            | DeviceState::Prepare
-                            | DeviceState::Config
-                            | DeviceState::NeedAuth
-                            | DeviceState::IpConfig
-                            | DeviceState::IpCheck
-                            | DeviceState::Secondaries
-                            | DeviceState::Deactivating
-                    ) {
+                    if dev.state.is_enabled() {
                         "On"
                     } else {
                         "Off"
@@ -248,7 +230,7 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
                 )
                 .centered(),
                 Line::from(format!("{}", dev.state)).centered(),
-                Line::from(freq).centered(),
+                Line::from(format!("{} MHz", dev.active_frequency_mhz.unwrap_or(0))).centered(),
                 Line::from(dev.hw_address.to_string()).centered(),
             ])
         })

@@ -18,7 +18,7 @@ ratatui = "0.30.1"
 serde = "1.0.228"
 tokio = { version = "1.52.3", features = ["rt-multi-thread", "macros"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
-nmrs = { git = "https://github.com/networkmanager-rs/nmrs", rev = "b6cbb46ce2a3e0259a7e0c2bbcb859fede083315" }
+nmrs = { git = "https://github.com/networkmanager-rs/nmrs", rev = "1c8216d763a697e30ea6413e12b4b220fb38384c" }
 bitflags = "2.13.0"
 zbus = "5.16.0"
 log = "0.4.32"
