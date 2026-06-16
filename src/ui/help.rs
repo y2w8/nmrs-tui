@@ -11,16 +11,15 @@ pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
     let help_msg = match focus {
         Focus::Tab(tab) => match tab {
             Tabs::KnownNetworks => {
-                "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | d Forget | c Edit | r Scan | ⇄ Nav"
+                "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | d Forget | t Autoconnect | r Scan | ⇄ Nav"
             }
 
             Tabs::AvailableNetworks => "k,  Up | j,  Down | 󱁐  or ↵  Connect | r Scan | ⇄ Nav",
 
-            Tabs::Devices => "r Scan | i Infos | o Toggle Power | ⇄ Nav",
+            Tabs::Devices => "r Scan | o Toggle Power | ⇄ Nav",
         },
         Focus::Popup(popup) => match popup {
             Popups::Password => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
-            Popups::EditNetwork => "wip",
         },
     };
 

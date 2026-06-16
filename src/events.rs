@@ -100,38 +100,35 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
                 }
             }
 
-            KeyCode::Char('c') => {
-                // if tab == Tabs::KnownNetworks
-                //     && let Some(Selected::Network(net)) = app.selected()
-                //     && let Some(uuid) = app
-                //         .network_manager
-                //         .nmrs
-                //         .get_saved_connection_uuid(&net.ssid)
-                //         .await?
-                // {
-                //     let saved_conn = app.network_manager.nmrs.get_saved_connection(&uuid).await?;
-                //     let mut patch = SettingsPatch::default();
-                //     patch.autoconnect = Some(!saved_conn.autoconnect);
-                //     app.network_manager
-                //         .nmrs
-                //         .update_saved_connection(&uuid, patch)
-                //         .await?;
-                //     app.action.send(Action::ShowToast(
-                //         None,
-                //         format!("{}", !saved_conn.autoconnect).into(),
-                //         Urgency::Success,
-                //         None,
-                //     ));
-                //     app.action
-                //          .send(Action::SetFocus(Focus::Popup(Popups::EditNetwork)));
-                //     app.action.send(Action::SetInputMode(InputMode::Editing));
-                // }
-                app.action.send(Action::ShowToast(
-                    None,
-                    "WIP".into(),
-                    Urgency::Critical,
-                    None,
-                ));
+            KeyCode::Char('t') => {
+                if tab == Tabs::KnownNetworks
+                    && let Some(Selected::Network(net)) = app.selected()
+                    && let Some(uuid) = app
+                        .network_manager
+                        .nmrs
+                        .get_saved_connection_uuid(&net.ssid)
+                        .await?
+                {
+                    let saved_conn = app.network_manager.nmrs.get_saved_connection(&uuid).await?;
+                    let mut patch = SettingsPatch::default();
+                    patch.autoconnect = Some(!saved_conn.autoconnect);
+
+                    app.network_manager
+                        .nmrs
+                        .update_saved_connection(&uuid, patch)
+                        .await?;
+
+                    app.action.send(Action::ShowToast(
+                        None,
+                        format!(
+                            "Auto Connect: {}",
+                            if !saved_conn.autoconnect { "On" } else { "Off" }
+                        )
+                        .into(),
+                        Urgency::Success,
+                        None,
+                    ));
+                }
             }
             _ => {}
         },

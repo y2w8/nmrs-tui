@@ -24,7 +24,6 @@ pub enum Action {
     Connect(Box<(String, Option<String>, WifiSecurity)>),
     Forget(String),
     #[allow(dead_code)]
-    EditNetwork(String),
     TogglePower,
     Disconnect,
 
@@ -210,8 +209,6 @@ impl ActionHandler {
                         let _ = action_tx.send(Action::Refresh);
                     });
                 }
-                // TODO: EditNetwork
-                Action::EditNetwork(_) => {}
                 Action::TogglePower => {
                     let network_manager = app.network_manager.clone();
                     let action_tx = app.action.sender();

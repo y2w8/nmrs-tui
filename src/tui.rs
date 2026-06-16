@@ -122,8 +122,6 @@ impl Tui {
                         app.action.send(Action::SetFocus(app.last_focus));
                     }
                 }
-
-                Popups::EditNetwork => {}
             }
         }
 

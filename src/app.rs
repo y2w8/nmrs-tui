@@ -20,7 +20,6 @@ pub enum Tabs {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Popups {
     Password,
-    EditNetwork,
 }
 
 #[derive(Debug, Clone, Copy)]
