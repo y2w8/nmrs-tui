@@ -1,13 +1,14 @@
 use std::{cmp::Reverse, time::Duration};
 
 use anyhow::Context;
-use nmrs::{ConnectionError, Network, SavedConnection, WifiDevice, WifiSecurity};
+use nmrs::{ConnectionError, Network, NetworkInfo, SavedConnection, WifiDevice, WifiSecurity};
 use tokio::time::{self, timeout};
 
 #[derive(Clone)]
 pub struct NetworkManager {
     pub nmrs: nmrs::NetworkManager,
     pub current_network: Option<Network>,
+    pub current_network_info: Option<NetworkInfo>,
 }
 
 // TODO: AirPlane mode
@@ -15,10 +16,16 @@ impl NetworkManager {
     pub async fn new() -> anyhow::Result<Self> {
         let nmrs = nmrs::NetworkManager::new().await?;
         let current_network = nmrs.current_network().await?;
+        let current_network_info = if let Some(network) = &current_network {
+            Some(nmrs.show_details(network).await?)
+        } else {
+            None
+        };
 
         Ok(Self {
             nmrs,
             current_network,
+            current_network_info,
         })
     }
 
@@ -28,6 +35,10 @@ impl NetworkManager {
 
     pub async fn current_network(&self) -> Option<Network> {
         self.nmrs.current_network().await.ok()?
+    }
+
+    pub async fn show_details(&self, network: &Network) -> Result<NetworkInfo, ConnectionError> {
+        self.nmrs.show_details(network).await
     }
 
     pub async fn scan_networks(&self) -> anyhow::Result<Vec<Network>> {

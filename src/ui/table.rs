@@ -222,6 +222,12 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
     } else {
         false
     };
+
+    let security = if let Some(network_info) = &app.network_manager.current_network_info {
+        &network_info.security
+    } else {
+        &"-".to_string()
+    };
     let rows: Vec<Row> = app
         .devices
         .items
@@ -233,6 +239,7 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
                 Line::from(format!("{}", dev.state)).centered(),
                 Line::from(format!("{} MHz", dev.active_frequency_mhz.unwrap_or(0))).centered(),
                 Line::from(dev.hw_address.to_string()).centered(),
+                Line::from(security.clone()).centered(),
             ])
         })
         .collect();
@@ -250,9 +257,10 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
                 Line::from("Security").centered(),
             ],
             constraint: vec![
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
+                Constraint::Percentage(10),
+                Constraint::Percentage(10),
+                Constraint::Percentage(15),
+                Constraint::Percentage(15),
                 Constraint::Percentage(20),
                 Constraint::Percentage(20),
             ],

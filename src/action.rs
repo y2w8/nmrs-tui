@@ -140,6 +140,12 @@ impl ActionHandler {
                     let (known, available, devices) = *box_data;
                     app.network_manager.current_network =
                         app.network_manager.current_network().await;
+                    app.network_manager.current_network_info =
+                        if let Some(network) = &app.network_manager.current_network {
+                            Some(app.network_manager.show_details(network).await?)
+                        } else {
+                            None
+                        };
 
                     app.known_networks.set_items(known);
                     app.available_networks.set_items(available);
@@ -206,6 +212,12 @@ impl ActionHandler {
                                 None,
                             ));
                         }
+                        let _ = action_tx.send(Action::ShowToast(
+                            None,
+                            "Forgeted".into(),
+                            Urgency::Success,
+                            None,
+                        ));
                         let _ = action_tx.send(Action::Refresh);
                     });
                 }

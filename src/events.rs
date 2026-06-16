@@ -54,7 +54,7 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
             KeyCode::Enter | KeyCode::Char(' ') => match tab {
                 Tabs::KnownNetworks => {
                     if let Some(Selected::Network(net)) = app.selected() {
-                        match &app.network_manager.current_network().await {
+                        match &app.network_manager.current_network {
                             None => {
                                 app.action.send(Action::Connect(Box::new((
                                     net.ssid.to_string(),
