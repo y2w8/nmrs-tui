@@ -7,7 +7,7 @@ use crossterm::{
 use ratatui::{
     Frame, Terminal,
     backend::CrosstermBackend,
-    layout::{Constraint, Direction, Layout},
+    layout::{Constraint, Layout},
 };
 use std::{io::stdout, time::Duration};
 use tokio::time;
@@ -18,7 +18,7 @@ use crate::{
     app::{App, Focus, Popups, Selected},
     events,
     ui::{
-        help, popup, table,
+        PanelKind, help, popup, table,
         toast::{self, Urgency},
     },
 };
@@ -90,28 +90,28 @@ impl Tui {
 
     fn draw(f: &mut Frame, app: &mut App) {
         let size = f.area();
+        let layout = &app.config.ui.layout;
 
-        let chunks = Layout::new(
-            Direction::Vertical,
-            [
-                Constraint::Percentage(50), // Known Networks
-                Constraint::Percentage(50), // Available Networks
-                Constraint::Min(5),         // Devices
-                Constraint::Length(1),      // Help
-            ],
-        )
-        .split(size);
+        let panel_kinds: Vec<PanelKind> =
+            app.config.ui.layout.panels.iter().map(|p| p.kind).collect();
+        let constraints: Vec<Constraint> = layout.panels.iter().map(|p| p.constraint).collect();
 
-        table::draw_known_network(f, chunks[0], app);
-        table::draw_available_network(f, chunks[1], app);
-        table::draw_devices(f, chunks[2], app);
-        help::draw(f, chunks[3], app.focus);
+        let chunks = Layout::new(layout.direction, constraints).split(size);
+
+        for (kind, area) in panel_kinds.iter().zip(chunks.iter()) {
+            match kind {
+                PanelKind::KnownNetworks => table::draw_known_network(f, *area, app),
+                PanelKind::AvailableNetworks => table::draw_available_network(f, *area, app),
+                PanelKind::Devices => table::draw_devices(f, *area, app),
+                PanelKind::Help => help::draw(f, *area, app.focus),
+            }
+        }
 
         if let Focus::Popup(popup) = app.focus {
             match popup {
                 Popups::Password => {
                     if let Some(Selected::Network(net)) = app.selected() {
-                        popup::draw_auth(f, &app.input, net)
+                        popup::draw_auth(f, &app.input, net, &app.config.ui.password_popup)
                     } else {
                         app.action.send(Action::ShowToast(
                             None,
@@ -125,7 +125,7 @@ impl Tui {
             }
         }
 
-        toast::draw(f, &app.toasts);
+        toast::draw(f, &app.config.ui.toast, &app.toasts);
     }
 
     // terminal cleanup

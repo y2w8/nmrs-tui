@@ -6,34 +6,38 @@ use ratatui::{
     text::{Line, Span},
     widgets::{self, Block, BorderType, Paragraph},
 };
+use serde::{Deserialize, Serialize};
 
-use crate::ui::{self, Margin, Position, input::Input};
+use crate::ui::{
+    area::{self, Position},
+    input::Input,
+    margin::Margin,
+};
 
-#[derive(Default)]
-pub struct Options {
+#[derive(Deserialize, Serialize)]
+pub struct PopupConfig {
     pub width: u16,
     pub height: u16,
+    #[serde(default)]
     pub position: Position,
+    #[serde(default)]
     pub margin: Margin,
 }
 
-pub fn popup_rect(f: &mut Frame, opt: Options) -> Rect {
-    let area = ui::anchor_rect(f.area(), opt.width, opt.height, opt.position, opt.margin);
+pub fn popup_rect(f: &mut Frame, config: &PopupConfig) -> Rect {
+    let area = area::anchor_rect(
+        f.area(),
+        config.width,
+        config.height,
+        config.position,
+        config.margin,
+    );
     f.render_widget(widgets::Clear, area); // Clear the area behind it
     area
 }
 
-// TODO: padding.
-pub fn draw_auth(f: &mut Frame, input: &Input, network: Network) {
-    let popup_rect = popup_rect(
-        f,
-        Options {
-            width: 60,
-            height: 7,
-            position: Position::Center,
-            ..Default::default()
-        },
-    );
+pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, config: &PopupConfig) {
+    let popup_rect = popup_rect(f, config);
 
     let block = Block::bordered()
         .border_style(Style::default().green().bold())

@@ -18,11 +18,11 @@ https://github.com/user-attachments/assets/6c76c8fd-067d-4a42-aa27-a5884fcc42a8
 `nmrs-tui` is a terminal user interface for [nmrs](https://github.com/cachebag/nmrs), inspired from [impala](https://github.com/pythops/impala).
 
 ## ✨ Features
-- **Available Networks:** Real-time scanning and listing of WiFi networks
-- **Known Networks:** Easily manage and connect to your saved profiles
-- **Device Management:** View and control your network interfaces
-- **Customizable:** (WIP).
-- **Vim-like Keybindings:** Navigate your networks with Vim-like keybinds
+- **Available Networks:** Real-time scanning and listing of WiFi networks.
+- **Known Networks:** Easily manage and connect to your saved profiles.
+- **Device Management:** View and control your network interfaces.
+- **Customizable:** colors, borders, layout, and table widths are all configurable via a RON config file
+- **Vim-like Keybindings:** Navigate your networks with Vim-like keybinds.
 
 ## 🚀 Installation
 

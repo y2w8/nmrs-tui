@@ -1,6 +1,13 @@
+use std::hash::Hash;
+
 use crate::{
     app::{App, Focus, Tabs},
-    ui::{self, Margin, list::StatefulList},
+    ui::{
+        area::{self, Border},
+        list::StatefulList,
+        margin::Margin,
+        style_config::StyleConfig,
+    },
 };
 use ratatui::{
     Frame,
@@ -9,32 +16,80 @@ use ratatui::{
     text::Line,
     widgets::{Block, BorderType, Row, Table},
 };
+use serde::{Deserialize, Serialize};
 
-pub struct TableData<'a, T> {
-    pub title: &'static str,
-    pub header_cols: Vec<Line<'a>>,
-    pub constraint: Vec<Constraint>,
+#[derive(Deserialize, Serialize)]
+pub struct TableConfig<K> {
+    pub title: String,
+    pub header: Header<K>,
+    pub border: Border,
+    #[serde(default)]
+    pub margin: Margin,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Header<K> {
+    pub columns: Vec<Column<K>>,
+    #[serde(default)]
+    pub style_normal: StyleConfig,
+    #[serde(default)]
+    pub style_active: StyleConfig,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Column<K> {
+    pub title: String,
+    pub value: K,
+    pub constraint: Constraint,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum NetworkColumnKind {
+    Name,
+    Security,
+    Signal,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum DeviceColumnKind {
+    Name,
+    Powered,
+    State,
+    Frequency,
+    Address,
+    Security,
+}
+
+pub struct Data<'a, T> {
     pub cells: Vec<Row<'a>>,
     pub list: &'a mut StatefulList<T>,
 }
 
-pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_active: bool) {
+pub fn draw<Any, K: Eq + Hash>(
+    f: &mut Frame,
+    area: Rect,
+    config: &TableConfig<K>,
+    data: &mut Data<Any>,
+    is_active: bool,
+) {
+    let area = area::fill_rect(area, config.margin);
+
     let border_style: Style = if is_active {
-        Style::new().bold().green()
+        config.border.style_active.format().unwrap_or_default()
     } else {
-        Style::new()
+        config.border.style_normal.format().unwrap_or_default()
     };
 
     let border_type: BorderType = if is_active {
-        BorderType::Thick
+        config.border.type_active
     } else {
-        BorderType::Plain
+        config.border.type_normal
     };
 
     let header_style: Style = if is_active {
-        Style::new().bold().yellow()
+        config.header.style_active.format().unwrap_or_default()
     } else {
-        Style::new()
+        config.header.style_normal.format().unwrap_or_default()
     };
 
     let row_style = if is_active {
@@ -42,22 +97,25 @@ pub fn draw<Any>(f: &mut Frame, area: Rect, table_data: &mut TableData<Any>, is_
     } else {
         Style::new()
     };
-    let table = Table::new(table_data.cells.clone(), table_data.constraint.clone())
-        .header(
-            Row::new(table_data.header_cols.clone())
-                .style(header_style)
-                .bottom_margin(1),
-        )
+
+    let (columns, constraints): (Vec<Line>, Vec<Constraint>) = config
+        .header
+        .columns
+        .iter()
+        .map(|c| (Line::from(c.title.clone()).centered(), c.constraint))
+        .unzip();
+    let table = Table::new(data.cells.clone(), constraints)
+        .header(Row::new(columns).style(header_style).bottom_margin(1))
         .block(
             Block::bordered()
-                .title(table_data.title)
+                .title(config.title.clone())
                 .border_style(border_style)
                 .border_type(border_type),
         )
         .flex(Flex::Center)
         .row_highlight_style(row_style);
 
-    f.render_stateful_widget(table, area, &mut table_data.list.state);
+    f.render_stateful_widget(table, area, &mut data.list.state);
 }
 
 pub fn draw_known_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
@@ -123,21 +181,9 @@ pub fn draw_known_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .collect();
     draw(
         f,
-        ui::fill_rect(area, Margin::new(0).horizontal(1).top(1)),
-        &mut TableData {
-            title: " Known Networks ",
-            header_cols: vec![
-                Line::from("Name").centered(),
-                Line::from("Security").centered(),
-                Line::from("State").centered(),
-                Line::from("Signal").centered(),
-            ],
-            constraint: vec![
-                Constraint::Percentage(40),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-            ],
+        area,
+        &app.config.ui.known_networks,
+        &mut Data {
             cells: rows,
             list: &mut app.known_networks,
         },
@@ -194,19 +240,9 @@ pub fn draw_available_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .collect();
     draw(
         f,
-        ui::fill_rect(area, Margin::new(0).horizontal(1)),
-        &mut TableData {
-            title: " Available Networks ",
-            header_cols: vec![
-                Line::from("Name").centered(),
-                Line::from("Security").centered(),
-                Line::from("Signal").centered(),
-            ],
-            constraint: vec![
-                Constraint::Percentage(40),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-            ],
+        area,
+        &app.config.ui.available_networks,
+        &mut Data {
             cells: rows,
             list: &mut app.available_networks,
         },
@@ -245,25 +281,9 @@ pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .collect();
     draw(
         f,
-        ui::fill_rect(area, Margin::new(0).horizontal(1)),
-        &mut TableData {
-            title: " Devices ",
-            header_cols: vec![
-                Line::from("Name").centered(),
-                Line::from("Powered").centered(),
-                Line::from("State").centered(),
-                Line::from("Frequency").centered(),
-                Line::from("Address").centered(),
-                Line::from("Security").centered(),
-            ],
-            constraint: vec![
-                Constraint::Percentage(10),
-                Constraint::Percentage(10),
-                Constraint::Percentage(15),
-                Constraint::Percentage(15),
-                Constraint::Percentage(20),
-                Constraint::Percentage(20),
-            ],
+        area,
+        &app.config.ui.devices,
+        &mut Data {
             cells: rows,
             list: &mut app.devices,
         },
