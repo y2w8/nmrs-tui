@@ -1,4 +1,7 @@
-use ratatui::layout::Rect;
+use ratatui::{layout::Rect, widgets::BorderType};
+use serde::{Deserialize, Serialize};
+
+use crate::ui::{style_config::StyleConfig, table::{DeviceColumnKind, NetworkColumnKind, TableConfig}};
 
 pub mod help;
 pub mod input;
@@ -6,9 +9,25 @@ pub mod list;
 pub mod popup;
 pub mod table;
 pub mod toast;
+pub mod style_config;
+
+#[derive(Deserialize, Serialize)]
+pub struct Ui {
+    pub known_networks: TableConfig<NetworkColumnKind>,
+    pub available_networks: TableConfig<NetworkColumnKind>,
+    pub devices: TableConfig<DeviceColumnKind>,
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct Border {
+    style_normal: StyleConfig,
+    style_active: StyleConfig,
+    type_normal: BorderType,
+    type_active: BorderType,
+}
 
 #[allow(dead_code)]
-#[derive(Default)]
+#[derive(Default, Deserialize, Serialize)]
 pub enum Position {
     #[default]
     LeftTop,
