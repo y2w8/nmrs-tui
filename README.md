@@ -10,6 +10,9 @@
   <img src="https://img.shields.io/badge/built%20with-Ratatui-red?style=for-the-badge" alt="Ratatui">
 </p>
 
+## Demo
+
+![demo](assets/demo.avif)
 ---
 
 `nmrs-tui` is a terminal user interface for [nmrs](https://github.com/cachebag/nmrs), inspired from [impala](https://github.com/pythops/impala).
