@@ -76,7 +76,6 @@ impl NetworkManager {
         self.nmrs.forget(ssid).await
     }
 
-    // TODO: auto connect.
     pub async fn connect(
         &self,
         ssid: &str,

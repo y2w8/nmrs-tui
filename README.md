@@ -12,17 +12,18 @@
 
 ## Demo
 
-![demo](assets/demo.avif)
+https://github.com/user-attachments/assets/6c76c8fd-067d-4a42-aa27-a5884fcc42a8
+
 ---
 
 `nmrs-tui` is a terminal user interface for [nmrs](https://github.com/cachebag/nmrs), inspired from [impala](https://github.com/pythops/impala).
 
 ## ✨ Features
-- **Available Networks:** Real-time scanning and listing of WiFi networks.
-- **Known Networks:** Easily manage and connect to your saved profiles.
-- **Device Management:** View and control your network interfaces.
+- **Available Networks:** Real-time scanning and listing of WiFi networks
+- **Known Networks:** Easily manage and connect to your saved profiles
+- **Device Management:** View and control your network interfaces
 - **Customizable:** (WIP).
-- **Vim-like Keybindings:** Navigate your networks with Vim-like keybinds.
+- **Vim-like Keybindings:** Navigate your networks with Vim-like keybinds
 
 ## 🚀 Installation
 
@@ -35,7 +36,10 @@
 cargo install nmrs-tui
 ```
 The binary will be available at `~/.cargo/bin/nmrs-tui`.
-Make sure to add path `export PATH="$HOME/.cargo/bin:$PATH"`
+Make sure `~/.cargo/bin` is on your `PATH`:
+```sh
+export PATH="$HOME/.cargo/bin:$PATH"
+```
 
 ### Build from Source
 ```bash
