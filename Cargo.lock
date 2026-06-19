@@ -1203,7 +1203,8 @@ dependencies = [
 [[package]]
 name = "nmrs"
 version = "3.2.1"
-source = "git+https://github.com/networkmanager-rs/nmrs?rev=1c8216d763a697e30ea6413e12b4b220fb38384c#1c8216d763a697e30ea6413e12b4b220fb38384c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b13662446e8a7321513ab63edef47899024ae7828188905cf5f7fed73cee3752"
 dependencies = [
  "async-trait",
  "base64",
