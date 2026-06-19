@@ -8,8 +8,8 @@ repository = "https://github.com/y2w8/nmrs-tui"
 edition = "2024"
 rust-version = "1.96.0"
 readme = "README.md"
-keywords = ["networkmanager", "tui", "linux"]
-categories = ["tui"]
+keywords = ["networkmanager", "tui", "terminal", "tokio", "linux"]
+categories = ["command-line-utilities"]
 exclude = [".github/", ".gitignore", "./assets/", "./PLANS.md", "./release.toml"]
 
 [dependencies]
