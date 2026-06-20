@@ -1,14 +1,13 @@
-# <p align="center"> nmrs-tui 🦀 </p>
-
-<p align="center">
+<div align="center">
+  <h1> nmrs-tui 🦀 </h1>
   <strong>A fast, keyboard-first TUI for NetworkManager — built in Rust.</strong>
-</p>
 
-<p align="center">
+  <br>
+  <br>
   <img src="https://img.shields.io/badge/status-BETA-orange?style=for-the-badge" alt="Status">
   <img src="https://img.shields.io/badge/license-GPL--3-blue?style=for-the-badge" alt="License">
   <img src="https://img.shields.io/badge/built%20with-Ratatui-red?style=for-the-badge" alt="Ratatui">
-</p>
+</div>
 
 ## Demo
 
