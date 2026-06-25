@@ -1,3 +1,82 @@
-/* @[crate::config::Config] */
+Config(
+    ui: Ui (
+      known_networks: TableConfig ( 
+            title: " Known Networks ",
+            header: Header (
+              columns: [
+                ( title: "Name", value: Name, constraint: Percentage(40) ),
+                ( title: "Security", value: Security, constraint: Percentage(20) ),
+                ( title: "Signal", value: Signal, constraint: Percentage(20) ),
+              ],
+              style_normal: StyleConfig(),
+              style_active: StyleConfig (
+                fg: Some("yellow"),
+                bold: true
+              ),
+            ),
+            border: Border (
+              style_normal: StyleConfig(),
+              style_active: StyleConfig(
+                fg: Some("green"),
+                bold: true
+              ),
+              type_normal: Plain,
+              type_active: Thick,
+            )
+      ),
 
-Config()
+      available_networks: TableConfig (
+            title: " Available Networks ",
+            header: Header (
+              columns: [
+                ( title: "Name", value: Name, constraint: Percentage(40) ),
+                ( title: "Security", value: Security, constraint: Percentage(20) ),
+                ( title: "Signal", value: Signal, constraint: Percentage(20) ),
+              ],
+              style_normal: StyleConfig(),
+              style_active: StyleConfig (
+                fg: Some("yellow"),
+                bold: true
+              ),
+            ),
+            border: Border (
+              style_normal: StyleConfig(),
+              style_active: StyleConfig(
+                fg: Some("green"),
+                bold: true
+              ),
+              type_normal: Plain,
+              type_active: Thick,
+            )
+      ),
+
+      devices: TableConfig (
+            title: " Devices ",
+            header: Header (
+              columns: [
+                ( title: "Name", value: Name, constraint: Percentage(10) ),
+                ( title: "Powered", value: Powered, constraint: Percentage(10) ),
+                ( title: "State", value: State, constraint: Percentage(15) ),
+                ( title: "Frequency", value: Frequency, constraint: Percentage(15) ),
+                ( title: "Address", value: Address, constraint: Percentage(20) ),
+                ( title: "Security", value: Security, constraint: Percentage(20) ),
+              ],
+
+              style_normal: StyleConfig(),
+              style_active: StyleConfig (
+                fg: Some("yellow"),
+                bold: true
+              ),
+            ),
+            border: Border (
+              style_normal: StyleConfig(),
+              style_active: StyleConfig(
+                fg: Some("green"),
+                bold: true
+              ),
+              type_normal: Plain,
+              type_active: Thick,
+            )
+        ),
+    ),
+)

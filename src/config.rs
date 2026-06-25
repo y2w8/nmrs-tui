@@ -11,14 +11,21 @@ use ron::{
 };
 use serde::{Deserialize, Serialize};
 
+use crate::ui::Ui;
+
+const DEFAULT_CONFIG: &str = include_str!("../config.ron");
+
 #[derive(Deserialize, Serialize)]
-#[serde(default)]
-pub struct Config {}
+pub struct Config {
+    pub ui: Ui,
+}
 
 #[allow(clippy::derivable_impls)]
 impl Default for Config {
     fn default() -> Self {
-        Self {}
+        let config: Self = de::from_str(DEFAULT_CONFIG)
+            .map_err(|e| format!("Failed to parse default RON config: {}", e)).unwrap();
+        config
     }
 }
 
