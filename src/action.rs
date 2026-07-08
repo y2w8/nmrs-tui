@@ -23,7 +23,6 @@ pub enum Action {
     NetworkScanResult(Box<(Vec<Network>, Vec<Network>, Vec<WifiDevice>)>),
     Connect(Box<(String, Option<String>, WifiSecurity)>),
     Forget(String),
-    #[allow(dead_code)]
     TogglePower,
     Disconnect,
 
@@ -34,7 +33,7 @@ pub enum Action {
         Option<Cow<'static, str>>,
         Cow<'static, str>,
         Urgency,
-        Option<Duration>,
+        Option<f32>,
     ),
 }
 
@@ -273,7 +272,13 @@ impl ActionHandler {
                     Tabs::Devices => app.devices.previous(),
                 },
                 Action::ShowToast(title, msg, urgency, duration) => {
-                    app.toasts.push(Toast::new(title, msg, urgency, duration));
+                    app.toasts.push(Toast::new(
+                        &app.config.ui.toast,
+                        title,
+                        msg,
+                        urgency,
+                        duration,
+                    ));
                 }
             }
         }

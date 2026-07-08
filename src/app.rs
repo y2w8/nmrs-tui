@@ -36,7 +36,7 @@ pub enum Selected {
 
 pub struct App {
     pub action: ActionHandler,
-    pub _config: Config,
+    pub config: Config,
     pub network_manager: NetworkManager,
     pub should_quit: bool,
 
@@ -55,7 +55,7 @@ pub struct App {
 }
 
 impl App {
-    pub async fn new(_config: Config) -> Result<Self> {
+    pub async fn new(config: Config) -> Result<Self> {
         let action = ActionHandler::new();
         let network_manager = NetworkManager::new().await?;
 
@@ -65,7 +65,7 @@ impl App {
 
         Ok(Self {
             action,
-            _config,
+            config,
             network_manager,
             should_quit: false,
 
