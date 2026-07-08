@@ -23,6 +23,7 @@ pub enum Action {
     NetworkScanResult(Box<(Vec<Network>, Vec<Network>, Vec<WifiDevice>)>),
     Connect(Box<(String, Option<String>, WifiSecurity)>),
     Forget(String),
+    ToggleAirplaneMode,
     TogglePower,
     Disconnect,
 
@@ -230,16 +231,38 @@ impl ActionHandler {
                         let _ = action_tx.send(Action::Refresh);
                     });
                 }
+                Action::ToggleAirplaneMode => {
+                    let network_manager = app.network_manager.clone();
+                    let action_tx = app.action.sender();
+                    tokio::spawn(async move {
+                        let enabled = network_manager
+                            .airplane_mode_state()
+                            .await
+                            .unwrap()
+                            .is_airplane_mode();
+                        let msg;
+                        let urgency;
+
+                        if network_manager.set_airplane_mode(!enabled).await.is_err() {
+                            msg = "Toggle airplane mode failed!".to_string();
+                            urgency = Urgency::Critical;
+                        } else {
+                            msg = format!("Airplane mode {}", if !enabled { "On" } else { "Off" });
+                            urgency = Urgency::Success;
+                        };
+                        let _ = action_tx.send(Action::ShowToast(None, msg.into(), urgency, None));
+                        let _ = action_tx.send(Action::Refresh);
+                    });
+                }
                 Action::TogglePower => {
                     let network_manager = app.network_manager.clone();
                     let action_tx = app.action.sender();
                     tokio::spawn(async move {
-                        let enabled = network_manager.nmrs.wifi_state().await.unwrap().enabled;
+                        let enabled = network_manager.wifi_state().await.unwrap().enabled;
                         let msg;
                         let urgency;
 
                         if network_manager
-                            .nmrs
                             .set_wireless_enabled(!enabled)
                             .await
                             .is_err()

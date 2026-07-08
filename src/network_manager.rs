@@ -1,7 +1,10 @@
 use std::{cmp::Reverse, time::Duration};
 
 use anyhow::Context;
-use nmrs::{ConnectionError, Network, NetworkInfo, SavedConnection, WifiDevice, WifiSecurity};
+use nmrs::{
+    AirplaneModeState, ConnectionError, Network, NetworkInfo, RadioState, SavedConnection,
+    SettingsPatch, WifiDevice, WifiSecurity,
+};
 use tokio::time::{self, timeout};
 
 #[derive(Clone)]
@@ -96,6 +99,44 @@ impl NetworkManager {
     #[allow(dead_code)]
     pub async fn has_saved_connection(&self, ssid: &str) -> Result<bool, ConnectionError> {
         self.nmrs.has_saved_connection(ssid).await
+    }
+
+    pub async fn get_saved_connection_uuid(
+        &self,
+        ssid: &str,
+    ) -> Result<Option<String>, ConnectionError> {
+        self.nmrs.get_saved_connection_uuid(ssid).await
+    }
+
+    pub async fn get_saved_connection(
+        &self,
+        uuid: &str,
+    ) -> Result<SavedConnection, ConnectionError> {
+        self.nmrs.get_saved_connection(uuid).await
+    }
+
+    pub async fn update_saved_connection(
+        &self,
+        uuid: &str,
+        patch: SettingsPatch,
+    ) -> Result<(), ConnectionError> {
+        self.nmrs.update_saved_connection(uuid, patch).await
+    }
+
+    pub async fn airplane_mode_state(&self) -> Result<AirplaneModeState, ConnectionError> {
+        self.nmrs.airplane_mode_state().await
+    }
+
+    pub async fn set_airplane_mode(&self, enabled: bool) -> Result<(), ConnectionError> {
+        self.nmrs.set_airplane_mode(enabled).await
+    }
+
+    pub async fn wifi_state(&self) -> Result<RadioState, ConnectionError> {
+        self.nmrs.wifi_state().await
+    }
+
+    pub async fn set_wireless_enabled(&self, enabled: bool) -> Result<(), ConnectionError> {
+        self.nmrs.set_wireless_enabled(enabled).await
     }
 
     pub async fn disconnect(&self) -> Result<(), ConnectionError> {

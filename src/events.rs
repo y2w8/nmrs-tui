@@ -38,6 +38,12 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
             KeyCode::Char('j') | KeyCode::Down => app.action.send(Action::NextItem(tab)),
             KeyCode::Char('k') | KeyCode::Up => app.action.send(Action::PreviousItem(tab)),
 
+            KeyCode::Char('a') => {
+                if tab == Tabs::Devices {
+                    app.action.send(Action::ToggleAirplaneMode);
+                }
+            }
+
             KeyCode::Char('o') => {
                 if tab == Tabs::Devices {
                     app.action.send(Action::TogglePower);
@@ -105,16 +111,14 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
                     && let Some(Selected::Network(net)) = app.selected()
                     && let Some(uuid) = app
                         .network_manager
-                        .nmrs
                         .get_saved_connection_uuid(&net.ssid)
                         .await?
                 {
-                    let saved_conn = app.network_manager.nmrs.get_saved_connection(&uuid).await?;
+                    let saved_conn = app.network_manager.get_saved_connection(&uuid).await?;
                     let mut patch = SettingsPatch::default();
                     patch.autoconnect = Some(!saved_conn.autoconnect);
 
                     app.network_manager
-                        .nmrs
                         .update_saved_connection(&uuid, patch)
                         .await?;
 

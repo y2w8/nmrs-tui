@@ -16,7 +16,7 @@ pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
 
             Tabs::AvailableNetworks => "k,  Up | j,  Down | 󱁐  or ↵  Connect | r Scan | ⇄ Nav",
 
-            Tabs::Devices => "r Scan | o Toggle Power | ⇄ Nav",
+            Tabs::Devices => "r Scan | o Toggle Power | a Toggle Airplane | ⇄ Nav",
         },
         Focus::Popup(popup) => match popup {
             Popups::Password => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
