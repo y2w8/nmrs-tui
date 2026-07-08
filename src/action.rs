@@ -4,7 +4,7 @@ use nmrs::{ConnectionError, Network, WifiDevice, WifiSecurity};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    app::{App, Focus, Tabs},
+    app::{App, Focus, Popups, Tabs},
     ui::{
         input::InputMode,
         toast::{Toast, Urgency},
@@ -126,6 +126,16 @@ impl ActionHandler {
                     debug!("Set focus to: {:?}!", new_focus);
                     app.last_focus = app.focus;
                     app.focus = new_focus;
+                    match new_focus {
+                        Focus::Popup(popup) => {
+                            if popup == Popups::Password {
+                                app.scan.disable();
+                            } else {
+                                app.scan.enable();
+                            }
+                        }
+                        Focus::Tab(_) => app.scan.enable(),
+                    }
                 }
                 Action::SetInputMode(new_inputmode) => {
                     debug!("Set InputMode to: {:?}!", new_inputmode);
