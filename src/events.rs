@@ -1,21 +1,20 @@
-use anyhow::{Ok, Result};
 use crossterm::event::{KeyCode, KeyEvent};
 use nmrs::{SettingsPatch, WifiSecurity};
 
 use crate::{
-    action::Action,
+    action::{Action, ConnectRequest, ToastRequest},
     app::{App, Focus, Popups, Selected, Tabs},
     ui::{input::InputMode, toast::Urgency},
 };
 
-pub async fn handle_events(app: &mut App, key: KeyEvent) -> Result<()> {
+pub async fn handle_events(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match app.focus {
         Focus::Tab(tab) => Ok(handle_tabs(app, key, tab).await?),
         Focus::Popup(popup) => Ok(handle_popups(app, key, popup).await?),
     }
 }
 
-async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
+async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> anyhow::Result<()> {
     match app.input.mode {
         InputMode::Normal => match key.code {
             KeyCode::Char('q') => app.action.send(Action::Quit),
@@ -62,11 +61,11 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
                     if let Some(Selected::Network(net)) = app.selected() {
                         match &app.network_manager.current_network {
                             None => {
-                                app.action.send(Action::Connect(Box::new((
-                                    net.ssid.to_string(),
-                                    None,
-                                    WifiSecurity::Open,
-                                ))));
+                                app.action.send(Action::Connect(Box::new(ConnectRequest {
+                                    ssid: net.ssid.to_string(),
+                                    interface: None,
+                                    credentials: WifiSecurity::Open,
+                                })));
                             }
 
                             Some(current) => match current.ssid == net.ssid {
@@ -74,11 +73,11 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
                                     app.action.send(Action::Disconnect);
                                 }
                                 false => {
-                                    app.action.send(Action::Connect(Box::new((
-                                        net.ssid.to_string(),
-                                        None,
-                                        WifiSecurity::Open,
-                                    ))));
+                                    app.action.send(Action::Connect(Box::new(ConnectRequest {
+                                        ssid: net.ssid.to_string(),
+                                        interface: None,
+                                        credentials: WifiSecurity::Open,
+                                    })));
                                 }
                             },
                         }
@@ -102,36 +101,71 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
                 if tab == Tabs::KnownNetworks
                     && let Some(Selected::Network(net)) = app.selected()
                 {
-                    app.action.send(Action::Forget(net.ssid.to_string()));
+                    app.action.send(Action::Forget {
+                        ssid: net.ssid.to_string(),
+                    });
                 }
             }
 
             KeyCode::Char('t') => {
                 if tab == Tabs::KnownNetworks
                     && let Some(Selected::Network(net)) = app.selected()
-                    && let Some(uuid) = app
-                        .network_manager
-                        .get_saved_connection_uuid(&net.ssid)
-                        .await?
                 {
-                    let saved_conn = app.network_manager.get_saved_connection(&uuid).await?;
-                    let mut patch = SettingsPatch::default();
-                    patch.autoconnect = Some(!saved_conn.autoconnect);
+                    let network_manager = app.network_manager.clone();
+                    let action_tx = app.action.sender();
+                    tokio::spawn(async move {
+                        let uuid = match network_manager.get_saved_connection_uuid(&net.ssid).await
+                        {
+                            Ok(Some(uuid)) => uuid,
+                            Ok(None) => return debug!("can't find uuid for {}!", net.ssid),
+                            Err(_) => {
+                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
+                                    title: None,
+                                    msg: "Failed to look up saved connection!".into(),
+                                    urgency: Urgency::Critical,
+                                    duration: None,
+                                })));
+                                return;
+                            }
+                        };
+                        let saved_conn = match network_manager.get_saved_connection(&uuid).await {
+                            Ok(conn) => conn,
+                            Err(_) => {
+                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
+                                    title: None,
+                                    msg: "Failed to get the saved connection!".into(),
+                                    urgency: Urgency::Critical,
+                                    duration: None,
+                                })));
+                                return;
+                            }
+                        };
+                        let mut patch = SettingsPatch::default();
+                        patch.autoconnect = Some(!saved_conn.autoconnect);
 
-                    app.network_manager
-                        .update_saved_connection(&uuid, patch)
-                        .await?;
-
-                    app.action.send(Action::ShowToast(
-                        None,
-                        format!(
-                            "Auto Connect: {}",
-                            if !saved_conn.autoconnect { "On" } else { "Off" }
-                        )
-                        .into(),
-                        Urgency::Success,
-                        None,
-                    ));
+                        match network_manager.update_saved_connection(&uuid, patch).await {
+                            Ok(_) => {
+                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
+                                    title: None,
+                                    msg: format!(
+                                        "Auto Connect: {}",
+                                        if !saved_conn.autoconnect { "On" } else { "Off" }
+                                    )
+                                    .into(),
+                                    urgency: Urgency::Success,
+                                    duration: None,
+                                })));
+                            }
+                            Err(_) => {
+                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
+                                    title: None,
+                                    msg: "Failed to update the saved connection!".into(),
+                                    urgency: Urgency::Success,
+                                    duration: None,
+                                })));
+                            }
+                        };
+                    });
                 }
             }
             _ => {}
@@ -141,22 +175,22 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> Result<()> {
     Ok(())
 }
 
-async fn handle_popups(app: &mut App, key: KeyEvent, popup: Popups) -> Result<()> {
+async fn handle_popups(app: &mut App, key: KeyEvent, popup: Popups) -> anyhow::Result<()> {
     match app.input.mode {
         InputMode::Normal => {}
         InputMode::Editing => match key.code {
             KeyCode::Enter => {
                 if let Some(Selected::Network(net)) = app.selected() {
-                    app.action.send(Action::Connect(Box::new((
-                        net.ssid.to_string(),
-                        None,
-                        WifiSecurity::WpaPsk {
+                    app.action.send(Action::Connect(Box::new(ConnectRequest {
+                        ssid: net.ssid.to_string(),
+                        interface: None,
+                        credentials: WifiSecurity::WpaPsk {
                             psk: app.input.value.clone(),
                         },
-                    ))));
+                    })));
                     app.action.send(Action::SetInputMode(InputMode::Normal));
                     app.action.send(Action::SetFocus(app.last_focus));
-                    app.scan.enabled = true;
+                    app.scan.enable();
                 }
             }
             KeyCode::Tab => {
@@ -171,7 +205,7 @@ async fn handle_popups(app: &mut App, key: KeyEvent, popup: Popups) -> Result<()
             KeyCode::Esc => {
                 app.action.send(Action::SetInputMode(InputMode::Normal));
                 app.action.send(Action::SetFocus(app.last_focus));
-                // app.scan.enabled = true;
+                app.scan.enable();
             }
             _ => {}
         },

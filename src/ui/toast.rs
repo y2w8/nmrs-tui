@@ -42,12 +42,12 @@ pub enum Urgency {
     Critical,
 }
 
-#[derive(Default, Deserialize, Serialize)]
+#[derive(Deserialize, Serialize)]
 pub struct UrgencyConfig {
     default_title: String,
     title_style: StyleConfig,
     border: Border,
-    default_duration: f32,
+    default_duration_secs: f32,
 }
 
 impl Toast {
@@ -77,7 +77,9 @@ impl Toast {
             title,
             msg: msg.into(),
             urgency,
-            duration: Duration::from_secs_f32(duration.unwrap_or(urgency_config.default_duration)),
+            duration: Duration::from_secs_f32(
+                duration.unwrap_or(urgency_config.default_duration_secs),
+            ),
         }
     }
 }

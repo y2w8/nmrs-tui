@@ -6,11 +6,8 @@ use std::{
 
 use ron::{
     Value,
-    ser::{self},
-};
-use ron::{
     de::{self},
-    ser::PrettyConfig,
+    ser::{self, PrettyConfig},
 };
 use serde::{Deserialize, Serialize};
 

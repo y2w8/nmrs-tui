@@ -14,7 +14,6 @@ pub struct NetworkManager {
     pub current_network_info: Option<NetworkInfo>,
 }
 
-// TODO: AirPlane mode
 impl NetworkManager {
     pub async fn new() -> anyhow::Result<Self> {
         let nmrs = nmrs::NetworkManager::new().await?;

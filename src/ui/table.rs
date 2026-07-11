@@ -1,4 +1,4 @@
-use std::hash::Hash;
+use std::{hash::Hash, mem};
 
 use crate::{
     app::{App, Focus, Tabs},
@@ -9,6 +9,7 @@ use crate::{
         style_config::StyleConfig,
     },
 };
+use nmrs::Network;
 use ratatui::{
     Frame,
     layout::{Constraint, Flex, Rect},
@@ -44,7 +45,15 @@ pub struct Column<K> {
 }
 
 #[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
-pub enum NetworkColumnKind {
+pub enum KnownNetworkColumnKind {
+    Name,
+    Security,
+    State,
+    Signal,
+}
+
+#[derive(Debug, Deserialize, Serialize, PartialEq, Eq, Hash)]
+pub enum AvailableNetworkColumnKind {
     Name,
     Security,
     Signal,
@@ -63,6 +72,37 @@ pub enum DeviceColumnKind {
 pub struct Data<'a, T> {
     pub cells: Vec<Row<'a>>,
     pub list: &'a mut StatefulList<T>,
+}
+
+fn network_info<'a>(net: Network) -> (&'a str, String, &'a str) {
+    let security = if net.is_psk {
+        "Psk"
+    } else if net.is_eap {
+        "Enterprise"
+    } else if net.secured {
+        "Other"
+    } else {
+        "Open"
+    };
+
+    let (strength, bars) = if let Some(strength) = net.strength {
+        let bars = if strength > 80 {
+            "󰤨"
+        } else if strength > 60 {
+            "󰤥"
+        } else if strength > 40 {
+            "󰤢"
+        } else if strength > 20 {
+            "󰤟"
+        } else {
+            "󰤯"
+        };
+        (strength.to_string(), bars)
+    } else {
+        ("Unknown".to_string(), "󰤯")
+    };
+
+    (security, strength, bars)
 }
 
 pub fn draw<Any, K: Eq + Hash>(
@@ -104,7 +144,7 @@ pub fn draw<Any, K: Eq + Hash>(
         .iter()
         .map(|c| (Line::from(c.title.clone()).centered(), c.constraint))
         .unzip();
-    let table = Table::new(data.cells.clone(), constraints)
+    let table = Table::new(mem::take(&mut data.cells), constraints)
         .header(Row::new(columns).style(header_style).bottom_margin(1))
         .block(
             Block::bordered()
@@ -119,64 +159,36 @@ pub fn draw<Any, K: Eq + Hash>(
 }
 
 pub fn draw_known_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
-    let active = if let Focus::Tab(tab) = app.focus
-        && tab == Tabs::KnownNetworks
-    {
-        true
-    } else {
-        false
-    };
+    let active = matches!(app.focus, Focus::Tab(Tabs::KnownNetworks));
+    let columns = &app.config.ui.known_networks.header.columns;
 
     let rows: Vec<Row> = app
         .known_networks
         .items
         .iter()
         .map(|net| -> Row<'_> {
-            let security = if net.is_psk {
-                "Psk"
-            } else if net.is_eap {
-                "Enterprise"
-            } else if net.secured {
-                "Other"
-            } else {
-                "Open"
-            };
+            let (security, strength, bars) = network_info(net.clone());
 
-            let (strength, bars) = if let Some(strength) = net.strength {
-                let bars = if strength > 80 {
-                    "󰤨"
-                } else if strength > 60 {
-                    "󰤥"
-                } else if strength > 40 {
-                    "󰤢"
-                } else if strength > 20 {
-                    "󰤟"
-                } else {
-                    "󰤯"
-                };
-                (strength.to_string(), bars)
-            } else {
-                ("Unknown".to_string(), "󰤯")
-            };
+            let connected = app
+                .network_manager
+                .current_network
+                .as_ref()
+                .is_some_and(|current| current.ssid == net.ssid);
 
-            Row::new(vec![
-                Line::from(net.ssid.clone()).centered(),
-                Line::from(security).centered(),
-                Line::from(
-                    if app
-                        .network_manager
-                        .current_network
-                        .as_ref()
-                        .is_some_and(|current| current.ssid == net.ssid)
-                    {
-                        "Connected"
-                    } else {
-                        "-"
-                    },
-                )
-                .centered(),
-                Line::from(format!("{}% {}", strength, bars)).centered(),
-            ])
+            let cells: Vec<Line> = columns
+                .iter()
+                .map(|c| match c.value {
+                    KnownNetworkColumnKind::Name => Line::from(net.ssid.clone()),
+                    KnownNetworkColumnKind::Security => Line::from(security),
+                    KnownNetworkColumnKind::State => {
+                        Line::from(if connected { "Connected" } else { "-" })
+                    }
+                    KnownNetworkColumnKind::Signal => Line::from(format!("{}% {}", strength, bars)),
+                })
+                .map(|line| line.centered())
+                .collect();
+
+            Row::new(cells)
         })
         .collect();
     draw(
@@ -192,50 +204,29 @@ pub fn draw_known_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
 }
 
 pub fn draw_available_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
-    let active = if let Focus::Tab(tab) = app.focus
-        && tab == Tabs::AvailableNetworks
-    {
-        true
-    } else {
-        false
-    };
+    let active = matches!(app.focus, Focus::Tab(Tabs::AvailableNetworks));
+    let columns = &app.config.ui.available_networks.header.columns;
+
     let rows: Vec<Row> = app
         .available_networks
         .items
         .iter()
         .map(|net| -> Row<'_> {
-            let security = if net.is_psk {
-                "Psk"
-            } else if net.is_eap {
-                "Enterprise"
-            } else if net.secured {
-                "Other"
-            } else {
-                "Open"
-            };
+            let (security, strength, bars) = network_info(net.clone());
 
-            let (strength, bars) = if let Some(strength) = net.strength {
-                let bars = if strength > 80 {
-                    "󰤨"
-                } else if strength > 60 {
-                    "󰤥"
-                } else if strength > 40 {
-                    "󰤢"
-                } else if strength > 20 {
-                    "󰤟"
-                } else {
-                    "󰤯"
-                };
-                (strength.to_string(), bars)
-            } else {
-                ("Unknown".to_string(), "󰤯")
-            };
+            let cells: Vec<Line> = columns
+                .iter()
+                .map(|c| match c.value {
+                    AvailableNetworkColumnKind::Name => Line::from(net.ssid.clone()),
+                    AvailableNetworkColumnKind::Security => Line::from(security),
+                    AvailableNetworkColumnKind::Signal => {
+                        Line::from(format!("{}% {}", strength, bars))
+                    }
+                })
+                .map(|line| line.centered())
+                .collect();
 
-            Row::new(vec![
-                Line::from(net.ssid.clone()).centered(),
-                Line::from(security).centered(),
-                Line::from(format!("{}% {}", strength, bars)).centered(),
-            ])
+            Row::new(cells)
         })
         .collect();
     draw(
@@ -251,32 +242,39 @@ pub fn draw_available_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
 }
 
 pub fn draw_devices(f: &mut Frame<'_>, area: Rect, app: &mut App) {
-    let active = if let Focus::Tab(tab) = app.focus
-        && tab == Tabs::Devices
-    {
-        true
-    } else {
-        false
-    };
+    let active = matches!(app.focus, Focus::Tab(Tabs::Devices));
+    let columns = &app.config.ui.devices.header.columns;
 
-    let security = if let Some(network_info) = &app.network_manager.current_network_info {
-        &network_info.security
-    } else {
-        &"-".to_string()
-    };
+    let security: String = app
+        .network_manager
+        .current_network_info
+        .as_ref()
+        .map(|info| info.security.clone())
+        .unwrap_or_else(|| "-".to_string());
+
     let rows: Vec<Row> = app
         .devices
         .items
         .iter()
         .map(|dev| -> Row<'_> {
-            Row::new(vec![
-                Line::from(dev.interface.clone()).centered(),
-                Line::from(if dev.state.is_enabled() { "On" } else { "Off" }).centered(),
-                Line::from(format!("{}", dev.state)).centered(),
-                Line::from(format!("{} MHz", dev.active_frequency_mhz.unwrap_or(0))).centered(),
-                Line::from(dev.hw_address.to_string()).centered(),
-                Line::from(security.clone()).centered(),
-            ])
+            let cells: Vec<Line> = columns
+                .iter()
+                .map(|c| match c.value {
+                    DeviceColumnKind::Name => Line::from(dev.interface.clone()),
+                    DeviceColumnKind::Powered => {
+                        Line::from(if dev.state.is_enabled() { "On" } else { "Off" })
+                    }
+                    DeviceColumnKind::State => Line::from(format!("{}", dev.state)),
+                    DeviceColumnKind::Frequency => {
+                        Line::from(format!("{} MHz", dev.active_frequency_mhz.unwrap_or(0)))
+                    }
+                    DeviceColumnKind::Address => Line::from(dev.hw_address.to_string()),
+                    DeviceColumnKind::Security => Line::from(security.clone()),
+                })
+                .map(|line| line.centered())
+                .collect();
+
+            Row::new(cells)
         })
         .collect();
     draw(

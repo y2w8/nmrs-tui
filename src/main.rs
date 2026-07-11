@@ -25,11 +25,19 @@ use crate::{cli::Cli, config::Config};
 async fn main() -> Result<()> {
     let cli = Cli::new();
     if cli.args.config {
-        let _ = Config::create(&Config::default());
+        if let Err(e) = Config::create(&Config::default()) {
+            error!("Failed to write config: {}", e);
+        };
     } else {
         // Initialize
         logger::init()?;
-        let config = Config::load().unwrap_or_default();
+        let config = match Config::load() {
+            Ok(cfg) => cfg,
+            Err(e) => {
+                error!("Failed to load config, using defaults: {}", e);
+                Config::default()
+            }
+        };
         let mut app = App::new(config).await?;
         let mut tui = Tui::new()?;
 

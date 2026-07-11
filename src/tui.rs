@@ -14,7 +14,7 @@ use tokio::time;
 use tokio_stream::StreamExt;
 
 use crate::{
-    action::{Action, ActionHandler},
+    action::{Action, ActionHandler, ToastRequest},
     app::{App, Focus, Popups, Selected},
     events,
     ui::{
@@ -64,14 +64,14 @@ impl Tui {
                 maybe_event = reader.next() => {
                     if let Some(Ok(Event::Key(key))) = maybe_event {
                         events::handle_events(app, key).await?;
-                        info!("Event: {:?}!", key);
+                        debug!("Event: {:?}!", key);
                         self.should_render = true;
                     }
                 }
 
                 // Render when there no action or event
                 _ = time::sleep(tick_rate.saturating_sub(last_tick.elapsed())) => {
-                    info!("Ticks!");
+                    debug!("Ticks!");
                     self.should_render = true;
                 }
             }
@@ -113,12 +113,12 @@ impl Tui {
                     if let Some(Selected::Network(net)) = app.selected() {
                         popup::draw_auth(f, &app.input, net, &app.config.ui.password_popup)
                     } else {
-                        app.action.send(Action::ShowToast(
-                            None,
-                            "Can't find selected network".into(),
-                            Urgency::Critical,
-                            None,
-                        ));
+                        app.action.send(Action::ShowToast(Box::new(ToastRequest {
+                            title: None,
+                            msg: "Can't find selected network".into(),
+                            urgency: Urgency::Critical,
+                            duration: None,
+                        })));
                         app.action.send(Action::SetFocus(app.last_focus));
                     }
                 }
