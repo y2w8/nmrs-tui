@@ -43,8 +43,6 @@ async fn main() -> Result<()> {
 
         // Start TUI
         if let Err(e) = tui.run(&mut app).await {
-            tui.cleanup()?;
-
             error!("Fatal error: {:#}", e);
             logger().flush();
             return Err(e);

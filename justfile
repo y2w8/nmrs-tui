@@ -4,8 +4,9 @@ build mode="":
 run:
   cargo run
 
-debug:
-  NMRS_LOG=trace cargo run
+debug $argument="":
+  @NMRS_LOG=trace cargo run -- $argument
+  @bat ~/.cache/nmrs-tui/nmrs-tui.log
 
 check:
   cargo check

@@ -48,7 +48,7 @@ impl Tui {
     pub async fn run(&mut self, app: &mut App) -> anyhow::Result<()> {
         let mut reader = EventStream::new();
         let mut last_tick = time::Instant::now();
-        let tick_rate = Duration::from_secs(1);
+        let tick_rate = Duration::from_millis(100);
 
         while !app.should_quit {
             if self.should_render {
@@ -64,14 +64,14 @@ impl Tui {
                 maybe_event = reader.next() => {
                     if let Some(Ok(Event::Key(key))) = maybe_event {
                         events::handle_events(app, key).await?;
-                        debug!("Event: {:?}!", key);
+                        trace!("Event: {:?}!", key);
                         self.should_render = true;
                     }
                 }
 
                 // Render when there no action or event
                 _ = time::sleep(tick_rate.saturating_sub(last_tick.elapsed())) => {
-                    debug!("Ticks!");
+                    trace!("Ticks!");
                     self.should_render = true;
                 }
             }
@@ -84,7 +84,6 @@ impl Tui {
             ActionHandler::handle_actions(app).await?;
         }
 
-        self.cleanup()?;
         Ok(())
     }
 
@@ -128,11 +127,17 @@ impl Tui {
         toast::draw(f, &app.config.ui.toast, &app.toasts);
     }
 
-    // terminal cleanup
-    pub fn cleanup(&mut self) -> anyhow::Result<()> {
-        disable_raw_mode()?;
-        self.terminal.backend_mut().execute(LeaveAlternateScreen)?;
-        self.terminal.show_cursor()?;
-        Ok(())
+    pub fn restore_terminal() {
+        let _ = disable_raw_mode();
+        let _ = stdout().execute(LeaveAlternateScreen);
+        let _ = stdout().execute(crossterm::cursor::Show);
+    }
+}
+
+impl Drop for Tui {
+    fn drop(&mut self) {
+        let _ = disable_raw_mode();
+        let _ = self.terminal.backend_mut().execute(LeaveAlternateScreen);
+        let _ = self.terminal.show_cursor();
     }
 }

@@ -74,7 +74,7 @@ pub struct Data<'a, T> {
     pub list: &'a mut StatefulList<T>,
 }
 
-fn network_info<'a>(net: Network) -> (&'a str, String, &'a str) {
+fn network_info<'a>(net: &Network) -> (&'a str, String, &'a str) {
     let security = if net.is_psk {
         "Psk"
     } else if net.is_eap {
@@ -99,7 +99,7 @@ fn network_info<'a>(net: Network) -> (&'a str, String, &'a str) {
         };
         (strength.to_string(), bars)
     } else {
-        ("Unknown".to_string(), "󰤯")
+        ("Unknown".to_string(), "󰤮")
     };
 
     (security, strength, bars)
@@ -167,7 +167,7 @@ pub fn draw_known_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .items
         .iter()
         .map(|net| -> Row<'_> {
-            let (security, strength, bars) = network_info(net.clone());
+            let (security, strength, bars) = network_info(net);
 
             let connected = app
                 .network_manager
@@ -212,7 +212,7 @@ pub fn draw_available_network(f: &mut Frame<'_>, area: Rect, app: &mut App) {
         .items
         .iter()
         .map(|net| -> Row<'_> {
-            let (security, strength, bars) = network_info(net.clone());
+            let (security, strength, bars) = network_info(net);
 
             let cells: Vec<Line> = columns
                 .iter()

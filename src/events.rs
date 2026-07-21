@@ -49,12 +49,9 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> anyhow::Result<
                 }
             }
 
-            KeyCode::Char('r') => match tab {
-                Tabs::AvailableNetworks | Tabs::KnownNetworks => {
-                    app.action.send(Action::Refresh);
-                }
-                _ => {}
-            },
+            KeyCode::Char('r') => {
+                app.action.send(Action::Refresh);
+            }
 
             KeyCode::Enter | KeyCode::Char(' ') => match tab {
                 Tabs::KnownNetworks => {
@@ -160,7 +157,7 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> anyhow::Result<
                                 _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
                                     title: None,
                                     msg: "Failed to update the saved connection!".into(),
-                                    urgency: Urgency::Success,
+                                    urgency: Urgency::Critical,
                                     duration: None,
                                 })));
                             }

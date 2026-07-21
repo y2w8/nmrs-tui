@@ -85,7 +85,14 @@ impl Toast {
 }
 
 pub fn draw(f: &mut Frame, config: &ToastConfig, toasts: &[Toast]) {
+    let visible_height = f.area().height;
+
     for (index, toast) in toasts.iter().enumerate() {
+        let top_margin = config.margin.top + (index as u16 * 4);
+        if top_margin >= visible_height - 4 {
+            break;
+        };
+
         let area = popup::popup_rect(
             f,
             &PopupConfig {
@@ -93,7 +100,7 @@ pub fn draw(f: &mut Frame, config: &ToastConfig, toasts: &[Toast]) {
                 height: 4,                                   // 4 = borders(2) + title(1) + msg(1)
                 position: config.position,
                 margin: Margin {
-                    top: config.margin.top + (index as u16 * 4),
+                    top: top_margin,
                     bottom: config.margin.bottom,
                     left: config.margin.left,
                     right: config.margin.right,

@@ -9,7 +9,6 @@ pub struct Timer {
     pub enabled: bool,
 }
 
-#[allow(dead_code)]
 impl Timer {
     pub fn new(duration: Duration, on_finish: Action, enabled: bool) -> Self {
         Self {
