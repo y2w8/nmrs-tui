@@ -65,11 +65,17 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, config: &PopupC
     ])
     .split(input_area);
 
-    let (password, icon): (String, &'static str) = if input.hidden_password {
+    let (mut password, icon): (String, &'static str) = if input.hidden_password {
         (input.value.chars().map(|_| '*').collect(), " 󰈉  ")
     } else {
         (input.value.to_string(), " 󰈈   ")
     };
+
+    // Horizontal scrolling when password is to long
+    let string_offset = password.len().saturating_sub(input_chunks[0].width.saturating_sub(1) as usize);
+    if string_offset > 0 {
+        password = password.split_at(string_offset).1.to_string();
+    }
 
     let password_widget = Paragraph::new(password).style(Style::new().on_dark_gray());
     f.render_widget(password_widget, input_chunks[0]);
