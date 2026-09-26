@@ -1,4 +1,4 @@
-use crossterm::event::{KeyCode, KeyEvent};
+use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
 use nmrs::{SettingsPatch, WifiSecurity};
 
 use crate::{
@@ -8,6 +8,10 @@ use crate::{
 };
 
 pub async fn handle_events(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    if key.kind != KeyEventKind::Press {
+        return Ok(());
+    }
+
     match app.focus {
         Focus::Tab(tab) => Ok(handle_tabs(app, key, tab).await?),
         Focus::Popup(popup) => Ok(handle_popups(app, key, popup).await?),

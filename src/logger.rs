@@ -11,7 +11,7 @@ use crate::tui::Tui;
 pub fn init() -> Result<()> {
     let default_hook = panic::take_hook();
     panic::set_hook(Box::new(move |panic_info| {
-        Tui::restore_terminal();
+        Tui::restore_terminal(None);
         error!("APPLICATION PANIC: {}", panic_info);
         logger().flush();
 

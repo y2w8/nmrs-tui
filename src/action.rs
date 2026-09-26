@@ -83,7 +83,7 @@ impl ActionHandler {
 
     pub async fn handle_actions(app: &mut App) -> anyhow::Result<()> {
         while let Ok(action) = app.action.rx.try_recv() {
-            debug!("Action: {:?}", action);
+            // trace!("Action: {:?}", action);
 
             match action {
                 Action::Quit => app.quit(),

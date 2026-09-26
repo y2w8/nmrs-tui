@@ -9,7 +9,7 @@ use ratatui::{
     backend::CrosstermBackend,
     layout::{Constraint, Layout},
 };
-use std::{io::stdout, time::Duration};
+use std::{io, time::Duration};
 use tokio::time;
 use tokio_stream::StreamExt;
 
@@ -24,13 +24,12 @@ use crate::{
 };
 
 pub struct Tui {
-    pub terminal: Terminal<CrosstermBackend<std::io::Stdout>>,
-    pub should_render: bool,
+    pub terminal: Terminal<CrosstermBackend<io::Stdout>>,
 }
 
 impl Tui {
     pub fn new() -> anyhow::Result<Self> {
-        let mut stdout = stdout();
+        let mut stdout = io::stdout();
         enable_raw_mode()?;
         stdout
             .execute(terminal::EnterAlternateScreen)?
@@ -39,40 +38,31 @@ impl Tui {
         let backend = CrosstermBackend::new(stdout);
         let terminal = Terminal::new(backend)?;
 
-        Ok(Tui {
-            terminal,
-            should_render: true,
-        })
+        Ok(Tui { terminal })
     }
 
     pub async fn run(&mut self, app: &mut App) -> anyhow::Result<()> {
         let mut reader = EventStream::new();
         let mut last_tick = time::Instant::now();
-        let tick_rate = Duration::from_millis(100);
+        let mut tick_interval = time::interval(Duration::from_millis(50));
 
         while !app.should_quit {
-            if self.should_render {
-                self.terminal.draw(|f| {
-                    Self::draw(f, app);
-                })?;
-                self.should_render = false;
-            }
+            self.terminal.draw(|f| {
+                Self::draw(f, app);
+            })?;
 
-            // Render when needed
             tokio::select! {
-                // Render & Handle events
                 maybe_event = reader.next() => {
-                    if let Some(Ok(Event::Key(key))) = maybe_event {
+
+                    if let Some(Ok(Event::Key(key))) = maybe_event
+                    {
                         events::handle_events(app, key).await?;
                         trace!("Event: {:?}!", key);
-                        self.should_render = true;
                     }
                 }
 
-                // Render when there no action or event
-                _ = time::sleep(tick_rate.saturating_sub(last_tick.elapsed())) => {
-                    trace!("Ticks!");
-                    self.should_render = true;
+                _ = tick_interval.tick() => {
+
                 }
             }
 
@@ -127,17 +117,20 @@ impl Tui {
         toast::draw(f, &app.config.ui.toast, &app.toasts);
     }
 
-    pub fn restore_terminal() {
+    pub fn restore_terminal(terminal: Option<&mut CrosstermBackend<io::Stdout>>) {
         let _ = disable_raw_mode();
-        let _ = stdout().execute(LeaveAlternateScreen);
-        let _ = stdout().execute(crossterm::cursor::Show);
+        if let Some(terminal) = terminal {
+            let _ = terminal.execute(LeaveAlternateScreen);
+            let _ = terminal.execute(crossterm::cursor::Show);
+        } else {
+            let _ = io::stdout().execute(LeaveAlternateScreen);
+            let _ = io::stdout().execute(crossterm::cursor::Show);
+        };
     }
 }
 
 impl Drop for Tui {
     fn drop(&mut self) {
-        let _ = disable_raw_mode();
-        let _ = self.terminal.backend_mut().execute(LeaveAlternateScreen);
-        let _ = self.terminal.show_cursor();
+        Self::restore_terminal(Some(self.terminal.backend_mut()));
     }
 }
