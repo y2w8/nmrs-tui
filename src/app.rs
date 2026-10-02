@@ -22,6 +22,13 @@ pub enum Popups {
     Password,
 }
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum Status {
+    // Scanning,
+    Connecting(String),
+    None,
+}
+
 #[derive(Debug, Clone, Copy)]
 pub enum Focus {
     Tab(Tabs),
@@ -41,6 +48,7 @@ pub struct App {
     pub should_quit: bool,
 
     // Data
+    pub status: Status,
     pub input: Input,
     pub focus: Focus,
     pub last_focus: Focus,
@@ -70,6 +78,7 @@ impl App {
             should_quit: false,
 
             // Data
+            status: Status::None,
             input: Input::new(),
             focus: Focus::Tab(Tabs::KnownNetworks),
             last_focus: Focus::Tab(Tabs::KnownNetworks),

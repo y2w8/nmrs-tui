@@ -72,7 +72,9 @@ pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, config: &PopupC
     };
 
     // Horizontal scrolling when password is to long
-    let string_offset = password.len().saturating_sub(input_chunks[0].width.saturating_sub(1) as usize);
+    let string_offset = password
+        .len()
+        .saturating_sub(input_chunks[0].width.saturating_sub(1) as usize);
     if string_offset > 0 {
         password = password.split_at(string_offset).1.to_string();
     }

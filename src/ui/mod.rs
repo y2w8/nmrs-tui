@@ -8,6 +8,7 @@ use crate::ui::{
 };
 
 pub mod area;
+pub mod header;
 pub mod help;
 pub mod input;
 pub mod list;
@@ -45,6 +46,7 @@ pub struct PanelConfig {
 
 #[derive(Debug, Clone, Copy, Deserialize, Serialize, PartialEq, Eq)]
 pub enum PanelKind {
+    Header,
     KnownNetworks,
     AvailableNetworks,
     Devices,
