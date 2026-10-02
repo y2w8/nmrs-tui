@@ -6,6 +6,10 @@ Config(
             direction: Vertical,
             panels: [
                 (
+                    kind: Header,
+                    constraint: Length(1),
+                ),
+                (
                     kind: KnownNetworks,
                     constraint: Percentage(50),
                 ),
@@ -61,7 +65,6 @@ Config(
                 type_active: Thick,
             ),
             margin: Margin(
-                top: 1,
                 left: 1,
                 right: 1,
             ),

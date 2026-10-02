@@ -18,7 +18,7 @@ use crate::{
     app::{App, Focus, Popups, Selected},
     events,
     ui::{
-        PanelKind, help, popup, table,
+        PanelKind, header, help, popup, table,
         toast::{self, Urgency},
     },
 };
@@ -89,6 +89,7 @@ impl Tui {
 
         for (kind, area) in panel_kinds.iter().zip(chunks.iter()) {
             match kind {
+                PanelKind::Header => header::draw(f, *area, app),
                 PanelKind::KnownNetworks => table::draw_known_network(f, *area, app),
                 PanelKind::AvailableNetworks => table::draw_available_network(f, *area, app),
                 PanelKind::Devices => table::draw_devices(f, *area, app),

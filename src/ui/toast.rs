@@ -34,10 +34,10 @@ pub struct ToastConfig {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
+#[allow(dead_code)]
 pub enum Urgency {
     Normal,
     Success,
-    #[allow(dead_code)]
     Warning,
     Critical,
 }

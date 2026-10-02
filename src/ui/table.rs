@@ -74,7 +74,7 @@ pub struct Data<'a, T> {
     pub list: &'a mut StatefulList<T>,
 }
 
-fn network_info<'a>(net: &Network) -> (&'a str, String, &'a str) {
+pub fn network_info<'a>(net: &Network) -> (&'a str, String, &'a str) {
     let security = if net.is_psk {
         "Psk"
     } else if net.is_eap {
