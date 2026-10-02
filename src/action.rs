@@ -305,22 +305,23 @@ impl ActionHandler {
                             }
                         };
 
-                        let msg;
-                        let urgency;
-
-                        match network_manager.set_airplane_mode(!enabled).await {
+                        let (msg, urgency) = match network_manager.set_airplane_mode(!enabled).await
+                        {
                             Ok(_) => {
                                 debug!("Airplane set to {}", !enabled);
-                                msg = format!(
-                                    "Airplane mode {}",
-                                    if !enabled { "On" } else { "Off" }
-                                );
-                                urgency = Urgency::Success;
+
+                                (
+                                    format!(
+                                        "Airplane mode {}",
+                                        if !enabled { "On" } else { "Off" }
+                                    ),
+                                    Urgency::Success,
+                                )
                             }
-                            Err(_) => {
-                                msg = "Toggle airplane mode failed!".to_string();
-                                urgency = Urgency::Critical;
-                            }
+                            Err(_) => (
+                                "Toggle airplane mode failed!".to_string(),
+                                Urgency::Critical,
+                            ),
                         };
                         _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
                             title: None,
@@ -347,20 +348,18 @@ impl ActionHandler {
                                 return;
                             }
                         };
-                        let msg;
-                        let urgency;
 
-                        match network_manager.set_wireless_enabled(!enabled).await {
-                            Ok(_) => {
-                                debug!("Wifi radio set to {}", !enabled);
-                                msg = format!("Wifi {}", if !enabled { "On" } else { "Off" });
-                                urgency = Urgency::Success;
-                            }
-                            Err(_) => {
-                                msg = "Toggle power failed!".to_string();
-                                urgency = Urgency::Critical;
-                            }
-                        };
+                        let (msg, urgency) =
+                            match network_manager.set_wireless_enabled(!enabled).await {
+                                Ok(_) => {
+                                    debug!("Wifi radio set to {}", !enabled);
+                                    (
+                                        format!("Wifi {}", if !enabled { "On" } else { "Off" }),
+                                        Urgency::Success,
+                                    )
+                                }
+                                Err(_) => ("Toggle power failed!".to_string(), Urgency::Critical),
+                            };
                         _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
                             title: None,
                             msg: msg.into(),
