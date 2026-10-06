@@ -3,21 +3,57 @@ use ratatui::widgets::TableState;
 pub struct StatefulList<T> {
     pub state: TableState,
     pub items: Vec<T>,
+    raw_items: Vec<T>,
 }
-impl<T> StatefulList<T> {
+impl<T: Clone> StatefulList<T> {
     pub fn new(items: Vec<T>) -> Self {
         let mut state = TableState::default();
         state.select_first();
-        Self { state, items }
+        Self {
+            state,
+            raw_items: items.clone(),
+            items,
+        }
     }
 
     pub fn set_items(&mut self, items: Vec<T>) {
+        self.raw_items = items.clone();
         self.items = items;
         // clamp selection to new length, or select first if nothing selected
         match self.state.selected() {
             Some(i) if i >= self.items.len() => self.state.select_first(),
             None => self.state.select_first(),
             _ => {}
+        }
+    }
+
+    pub fn filter<F>(&mut self, mut predicate: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        self.items = self
+            .raw_items
+            .iter()
+            .filter(|item| predicate(item))
+            .cloned()
+            .collect();
+        self.clamp_selection();
+    }
+
+    pub fn reset_filter(&mut self) {
+        self.items = self.raw_items.clone();
+        self.clamp_selection();
+    }
+
+    fn clamp_selection(&mut self) {
+        if self.items.is_empty() {
+            self.state.select(None);
+        } else {
+            match self.state.selected() {
+                Some(i) if i >= self.items.len() => self.state.select_first(),
+                None => self.state.select_first(),
+                _ => {}
+            }
         }
     }
 
