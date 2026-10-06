@@ -21,6 +21,8 @@ pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
         Focus::Popup(popup) => match popup {
             Popups::Password => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
         },
+
+        Focus::Header => "↵  Confirm | 󱊷  Discard",
     };
 
     f.render_widget(

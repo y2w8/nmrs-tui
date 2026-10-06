@@ -1,18 +1,18 @@
 use ratatui::{
     Frame,
-    layout::{Alignment, Constraint, Layout, Rect},
+    layout::{self, Alignment, Constraint, Layout, Rect},
     style::{Color, Style},
     text::{Line, Span},
 };
 
 use crate::{
-    app::{App, Status},
-    ui::table::network_info,
+    app::{App, Focus, Status},
+    ui::{input::InputMode, table::network_info},
 };
 
 pub fn draw(f: &mut Frame<'_>, area: Rect, app: &mut App) {
     let chunks = Layout::horizontal([
-        Constraint::Fill(12),
+        Constraint::Fill(1),
         Constraint::Fill(1),
         Constraint::Fill(1),
     ])
@@ -25,12 +25,35 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, app: &mut App) {
     .alignment(Alignment::Left);
 
     //  Center: status
-    let status_span = match &app.status {
-        Status::Connecting(ssid) => Span::styled(
-            format!("Connecting to {}...", ssid),
-            Style::new().fg(Color::Green),
-        ),
-        Status::None => Span::raw(""),
+    let status_span: Vec<Span> = if let Some(status) = &app.status {
+        match status {
+            Status::Connecting(ssid) => vec![
+                Span::styled("Connecting to ", Style::new().fg(Color::Yellow)),
+                Span::styled(format!("{}...", ssid), Style::new().fg(Color::Green)),
+            ],
+
+            Status::Searching(search_query) => {
+                let prefix = "Searching: ";
+                let prefix_len = prefix.chars().count() as u16;
+                let total_len = prefix_len + search_query.chars().count() as u16;
+
+                let start_x = chunks[1].x + (chunks[1].width.saturating_sub(total_len) / 2);
+                let cx = start_x + prefix_len + app.input.cx as u16;
+
+                // cx_max = position + width - 1 (so the cursor does go outside the input area)
+                let cx_max = chunks[1].x + chunks[1].width.saturating_sub(1);
+                if app.focus == Focus::Header && app.input.mode == InputMode::Editing {
+                    f.set_cursor_position(layout::Position::new(cx.min(cx_max), chunks[1].y));
+                }
+
+                vec![
+                    Span::styled(prefix, Style::new().fg(Color::Yellow)),
+                    Span::styled(search_query, Style::new().fg(Color::Reset)),
+                ]
+            }
+        }
+    } else {
+        vec![Span::raw("")]
     };
     let center_line = Line::from(status_span).alignment(Alignment::Center);
 

@@ -3,7 +3,7 @@ use nmrs::{SettingsPatch, WifiSecurity};
 
 use crate::{
     action::{Action, ConnectRequest, ToastRequest},
-    app::{App, Focus, Popups, Selected, Tabs},
+    app::{App, Focus, Popups, Selected, Status, Tabs},
     ui::{input::InputMode, toast::Urgency},
 };
 
@@ -15,6 +15,7 @@ pub async fn handle_events(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
     match app.focus {
         Focus::Tab(tab) => Ok(handle_tabs(app, key, tab).await?),
         Focus::Popup(popup) => Ok(handle_popups(app, key, popup).await?),
+        Focus::Header => Ok(handle_header(app, key).await?),
     }
 }
 
@@ -22,6 +23,18 @@ async fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) -> anyhow::Result<
     match app.input.mode {
         InputMode::Normal => match key.code {
             KeyCode::Char('q') => app.action.send(Action::Quit),
+            KeyCode::Char('/') => {
+                app.action.send(Action::SetInputMode(InputMode::Editing));
+                app.action
+                    .send(Action::SetStatus(Some(Status::Searching(String::new()))));
+                app.action.send(Action::SetFocus(Focus::Header));
+            }
+            KeyCode::Esc => {
+                if let Some(Status::Searching(_)) = &app.status {
+                    app.action.send(Action::SetStatus(None));
+                    app.reset_filter();
+                };
+            }
 
             // Navigation
             KeyCode::Tab | KeyCode::Char('l') | KeyCode::Right => {
@@ -210,6 +223,56 @@ async fn handle_popups(app: &mut App, key: KeyEvent, popup: Popups) -> anyhow::R
             }
             _ => {}
         },
+    }
+    Ok(())
+}
+
+async fn handle_header(app: &mut App, key: KeyEvent) -> anyhow::Result<()> {
+    if let Some(status) = &app.status
+        && let Status::Searching(_) = status
+    {
+        match app.input.mode {
+            #[allow(clippy::single_match)]
+            InputMode::Normal => match key.code {
+                KeyCode::Esc => {
+                    // Return to original state
+                    app.action.send(Action::SetStatus(None));
+                    app.reset_filter();
+                }
+                _ => {}
+            },
+            InputMode::Editing => match key.code {
+                KeyCode::Enter => {
+                    // Return to original state without reseting Status so filter keep working when navigating
+                    app.action.send(Action::SetInputMode(InputMode::Normal));
+                    app.action.send(Action::SetFocus(app.last_focus));
+                }
+                KeyCode::Char(to_insert) => {
+                    app.input.enter_char(to_insert);
+                    app.action.send(Action::SetStatus(Some(Status::Searching(
+                        app.input.value.clone(),
+                    ))));
+                    app.apply_filter();
+                }
+                KeyCode::Backspace => {
+                    app.input.delete_char();
+                    app.action.send(Action::SetStatus(Some(Status::Searching(
+                        app.input.value.clone(),
+                    ))));
+                    app.apply_filter();
+                }
+                KeyCode::Left => app.input.move_cursor_left(),
+                KeyCode::Right => app.input.move_cursor_right(),
+                KeyCode::Esc => {
+                    // Return to original state
+                    app.action.send(Action::SetInputMode(InputMode::Normal));
+                    app.action.send(Action::SetFocus(app.last_focus));
+                    app.action.send(Action::SetStatus(None));
+                    app.reset_filter();
+                }
+                _ => {}
+            },
+        }
     }
     Ok(())
 }

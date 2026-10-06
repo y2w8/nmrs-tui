@@ -24,15 +24,15 @@ pub enum Popups {
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Status {
-    // Scanning,
     Connecting(String),
-    None,
+    Searching(String),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Focus {
     Tab(Tabs),
     Popup(Popups),
+    Header,
 }
 
 #[derive(Clone)]
@@ -48,7 +48,7 @@ pub struct App {
     pub should_quit: bool,
 
     // Data
-    pub status: Status,
+    pub status: Option<Status>,
     pub input: Input,
     pub focus: Focus,
     pub last_focus: Focus,
@@ -78,7 +78,7 @@ impl App {
             should_quit: false,
 
             // Data
-            status: Status::None,
+            status: None,
             input: Input::new(),
             focus: Focus::Tab(Tabs::KnownNetworks),
             last_focus: Focus::Tab(Tabs::KnownNetworks),
@@ -92,6 +92,43 @@ impl App {
             devices: StatefulList::new(device_list),
         })
     }
+
+    // TODO: Cursor
+    pub fn apply_filter(&mut self) {
+        let tab;
+        if let Focus::Tab(prev_tab) = self.last_focus {
+            tab = prev_tab
+        } else if let Focus::Tab(current_tab) = self.focus {
+            tab = current_tab
+        } else {
+            return;
+        };
+
+        if let Some(Status::Searching(query)) = &self.status {
+            let q = query.to_lowercase();
+            match tab {
+                Tabs::KnownNetworks => {
+                    self.known_networks
+                        .filter(|net| net.ssid.to_lowercase().contains(&q));
+                }
+                Tabs::AvailableNetworks => {
+                    self.available_networks
+                        .filter(|net| net.ssid.to_lowercase().contains(&q));
+                }
+                Tabs::Devices => {
+                    self.devices
+                        .filter(|dev| dev.interface.to_lowercase().contains(&q));
+                }
+            }
+        }
+    }
+
+    pub fn reset_filter(&mut self) {
+        self.known_networks.reset_filter();
+        self.available_networks.reset_filter();
+        self.devices.reset_filter();
+    }
+
     pub fn timers_mut(&mut self) -> Vec<&mut Timer> {
         vec![&mut self.scan]
     }
@@ -126,7 +163,7 @@ impl App {
                     .and_then(|i| self.devices.items.get(i))
                     .map(|_d| Selected::Device(())),
             },
-            Focus::Popup(_) => None,
+            _ => None,
         }
     }
 

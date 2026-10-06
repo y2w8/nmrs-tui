@@ -17,7 +17,7 @@ pub enum Action {
     Tick(Duration),
     Refresh,
     SetFocus(Focus),
-    SetStatus(Status),
+    SetStatus(Option<Status>),
     SetInputMode(InputMode),
 
     // Network Commands
@@ -149,6 +149,8 @@ impl ActionHandler {
                     debug!("Set focus to: {:?}!", new_focus);
                     app.last_focus = app.focus;
                     app.focus = new_focus;
+
+                    // Stop scaning when password popup is open
                     match new_focus {
                         Focus::Popup(popup) => {
                             if popup == Popups::Password {
@@ -158,7 +160,7 @@ impl ActionHandler {
                                 app.scan.enable();
                             }
                         }
-                        Focus::Tab(_) => app.scan.enable(),
+                        _ => app.scan.enable(),
                     }
                 }
 
@@ -200,12 +202,16 @@ impl ActionHandler {
                     app.known_networks.set_items(scan_result.known);
                     app.available_networks.set_items(scan_result.available);
                     app.devices.set_items(scan_result.devices);
+
+                    if let Some(Status::Searching(_)) = &app.status {
+                        app.apply_filter();
+                    }
                 }
                 Action::Connect(box_data) => {
                     let conn_req = *box_data;
-                    app.action.send(Action::SetStatus(Status::Connecting(
+                    app.action.send(Action::SetStatus(Some(Status::Connecting(
                         conn_req.ssid.to_string(),
-                    )));
+                    ))));
 
                     let action_tx = app.action.sender();
                     let network_manager = app.network_manager.clone();
@@ -256,7 +262,7 @@ impl ActionHandler {
                             duration: None,
                         })));
 
-                        _ = action_tx.send(Action::SetStatus(Status::None));
+                        _ = action_tx.send(Action::SetStatus(None));
 
                         //  Trigger a refresh so current_network update
                         _ = action_tx.send(Action::Refresh);

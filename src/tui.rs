@@ -44,7 +44,7 @@ impl Tui {
     pub async fn run(&mut self, app: &mut App) -> anyhow::Result<()> {
         let mut reader = EventStream::new();
         let mut last_tick = time::Instant::now();
-        let mut tick_interval = time::interval(Duration::from_millis(50));
+        let mut tick_interval = time::interval(Duration::from_millis(16));
 
         while !app.should_quit {
             self.terminal.draw(|f| {
@@ -97,8 +97,9 @@ impl Tui {
             }
         }
 
-        if let Focus::Popup(popup) = app.focus {
-            match popup {
+        #[allow(clippy::single_match)]
+        match app.focus {
+            Focus::Popup(popup) => match popup {
                 Popups::Password => {
                     if let Some(Selected::Network(net)) = app.selected() {
                         popup::draw_auth(f, &app.input, net, &app.config.ui.password_popup)
@@ -112,7 +113,8 @@ impl Tui {
                         app.action.send(Action::SetFocus(app.last_focus));
                     }
                 }
-            }
+            },
+            _ => {}
         }
 
         toast::draw(f, &app.config.ui.toast, &app.toasts);
