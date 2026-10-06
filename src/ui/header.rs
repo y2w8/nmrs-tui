@@ -6,7 +6,8 @@ use ratatui::{
 };
 
 use crate::{
-    app::{App, Focus, Status}, ui::{input::InputMode, table::network_info},
+    app::{App, Focus, Status},
+    ui::{input::InputMode, table::network_info},
 };
 
 pub fn draw(f: &mut Frame<'_>, area: Rect, app: &mut App) {

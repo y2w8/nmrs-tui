@@ -14,7 +14,10 @@ use tokio::time;
 use tokio_stream::StreamExt;
 
 use crate::{
-    action::{Action, ActionHandler, ToastRequest}, app::{App, Focus, Popups, Selected}, events, ui::{
+    action::{Action, ActionHandler, ToastRequest},
+    app::{App, Focus, Popups, Selected},
+    events,
+    ui::{
         PanelKind, header, help, popup, table,
         toast::{self, Urgency},
     },
@@ -110,7 +113,6 @@ impl Tui {
                         app.action.send(Action::SetFocus(app.last_focus));
                     }
                 }
-
             },
             _ => {}
         }
