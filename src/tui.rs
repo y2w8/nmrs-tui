@@ -14,13 +14,10 @@ use tokio::time;
 use tokio_stream::StreamExt;
 
 use crate::{
-    action::{Action, ActionHandler, ToastRequest},
+    action::{Action, ActionHandler},
     app::{App, Focus, Popups, Selected},
     events,
-    ui::{
-        PanelKind, header, help, popup, table,
-        toast::{self, Urgency},
-    },
+    ui::{PanelKind, header, help, popup, table, toast},
 };
 
 pub struct Tui {
@@ -53,17 +50,13 @@ impl Tui {
 
             tokio::select! {
                 maybe_event = reader.next() => {
-
-                    if let Some(Ok(Event::Key(key))) = maybe_event
-                    {
-                        events::handle_events(app, key).await?;
+                    if let Some(Ok(Event::Key(key))) = maybe_event {
+                        events::handle_events(app, key);
                         trace!("Event: {:?}!", key);
                     }
                 }
 
-                _ = tick_interval.tick() => {
-
-                }
+                _ = tick_interval.tick() => {}
             }
 
             let now = time::Instant::now();
@@ -81,13 +74,11 @@ impl Tui {
         let size = f.area();
         let layout = &app.config.ui.layout;
 
-        let panel_kinds: Vec<PanelKind> =
-            app.config.ui.layout.panels.iter().map(|p| p.kind).collect();
-        let constraints: Vec<Constraint> = layout.panels.iter().map(|p| p.constraint).collect();
-
+        let (panel_kinds, constraints): (Vec<PanelKind>, Vec<Constraint>) =
+            layout.panels.iter().map(|p| (p.kind, p.constraint)).unzip();
         let chunks = Layout::new(layout.direction, constraints).split(size);
 
-        for (kind, area) in panel_kinds.iter().zip(chunks.iter()) {
+        for (kind, area) in panel_kinds.into_iter().zip(chunks.iter()) {
             match kind {
                 PanelKind::Header => header::draw(f, *area, app),
                 PanelKind::KnownNetworks => table::draw_known_network(f, *area, app),
@@ -97,21 +88,13 @@ impl Tui {
             }
         }
 
-        if let Focus::Popup(popup) = app.focus {
-            match popup {
-                Popups::Password => {
-                    if let Some(Selected::Network(net)) = app.selected() {
-                        popup::draw_auth(f, &app.input, net, &app.config.ui.password_popup)
-                    } else {
-                        app.action.send(Action::ShowToast(Box::new(ToastRequest {
-                            title: None,
-                            msg: "Can't find selected network".into(),
-                            urgency: Urgency::Critical,
-                            duration: None,
-                        })));
-                        app.action.send(Action::SetFocus(app.last_focus));
-                    }
-                }
+        if let Focus::Popup(Popups::Password) = app.focus {
+            if let Some(Selected::Network(net)) = app.selected() {
+                popup::draw_auth(f, &app.input, &net, &app.config.ui.password_popup);
+            } else {
+                app.action
+                    .send(Action::toast_err("Can't find selected network"));
+                app.action.send(Action::SetFocus(app.last_focus));
             }
         }
 

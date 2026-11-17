@@ -17,6 +17,24 @@ pub enum Tabs {
     Devices,
 }
 
+impl Tabs {
+    pub fn next(self) -> Self {
+        match self {
+            Self::KnownNetworks => Self::AvailableNetworks,
+            Self::AvailableNetworks => Self::Devices,
+            Self::Devices => Self::KnownNetworks,
+        }
+    }
+
+    pub fn prev(self) -> Self {
+        match self {
+            Self::KnownNetworks => Self::Devices,
+            Self::AvailableNetworks => Self::KnownNetworks,
+            Self::Devices => Self::AvailableNetworks,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Popups {
     Password,
@@ -104,28 +122,17 @@ impl App {
         };
 
         match focus {
-            Focus::Tab(tab) => match tab {
-                Tabs::KnownNetworks => self
-                    .known_networks
-                    .state
-                    .selected()
-                    .and_then(|i| self.known_networks.items.get(i))
-                    .map(|n| Selected::Network(n.clone())),
-
-                Tabs::AvailableNetworks => self
-                    .available_networks
-                    .state
-                    .selected()
-                    .and_then(|i| self.available_networks.items.get(i))
-                    .map(|n| Selected::Network(n.clone())),
-
-                Tabs::Devices => self
-                    .devices
-                    .state
-                    .selected()
-                    .and_then(|i| self.devices.items.get(i))
-                    .map(|_d| Selected::Device(())),
-            },
+            Focus::Tab(Tabs::KnownNetworks) => self
+                .known_networks
+                .selected()
+                .cloned()
+                .map(Selected::Network),
+            Focus::Tab(Tabs::AvailableNetworks) => self
+                .available_networks
+                .selected()
+                .cloned()
+                .map(Selected::Network),
+            Focus::Tab(Tabs::Devices) => self.devices.selected().map(|_| Selected::Device(())),
             Focus::Popup(_) => None,
         }
     }

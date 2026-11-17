@@ -10,7 +10,7 @@ use crate::{
     ui::table::network_info,
 };
 
-pub fn draw(f: &mut Frame<'_>, area: Rect, app: &mut App) {
+pub fn draw(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::horizontal([
         Constraint::Fill(12),
         Constraint::Fill(1),

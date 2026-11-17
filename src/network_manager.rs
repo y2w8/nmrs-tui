@@ -31,17 +31,7 @@ impl NetworkManager {
         })
     }
 
-    pub async fn get_devices(&self) -> Result<Vec<WifiDevice>, ConnectionError> {
-        self.nmrs.list_wifi_devices().await
-    }
-
-    pub async fn current_network(&self) -> Option<Network> {
-        self.nmrs.current_network().await.ok()?
-    }
-
-    pub async fn show_details(&self, network: &Network) -> Result<NetworkInfo, ConnectionError> {
-        self.nmrs.show_details(network).await
-    }
+    // Scanning & Discovery
 
     pub async fn scan_networks(&self) -> anyhow::Result<Vec<Network>> {
         self.nmrs
@@ -56,26 +46,21 @@ impl NetworkManager {
 
     pub async fn networks_list(&self) -> Result<(Vec<Network>, Vec<Network>), ConnectionError> {
         let scan_list = self.scan_networks().await.unwrap_or_default();
-
-        let mut known_final = Vec::new();
-        let mut new_final = Vec::new();
-
-        for net in &scan_list {
-            if net.known {
-                known_final.push(net.clone());
-            } else {
-                new_final.push(net.clone());
-            }
-        }
-        Ok((known_final, new_final))
+        Ok(scan_list.into_iter().partition(|net| net.known))
     }
 
-    pub async fn _saved_connections(&self) -> Result<Vec<SavedConnection>, ConnectionError> {
-        self.nmrs.list_saved_connections().await
+    pub async fn get_devices(&self) -> Result<Vec<WifiDevice>, ConnectionError> {
+        self.nmrs.list_wifi_devices().await
     }
 
-    pub async fn forget(&self, ssid: &str) -> Result<(), ConnectionError> {
-        self.nmrs.forget(ssid).await
+    // Active Connection
+
+    pub async fn current_network(&self) -> Option<Network> {
+        self.nmrs.current_network().await.ok()?
+    }
+
+    pub async fn show_details(&self, network: &Network) -> Result<NetworkInfo, ConnectionError> {
+        self.nmrs.show_details(network).await
     }
 
     pub async fn connect(
@@ -91,14 +76,15 @@ impl NetworkManager {
         .await
     }
 
-    pub async fn _is_connected(&self, ssid: &str) -> Result<bool, ConnectionError> {
-        self.nmrs.is_connected(ssid).await
+    pub async fn disconnect(&self) -> Result<(), ConnectionError> {
+        self.nmrs.disconnect(None).await
     }
 
-    #[allow(dead_code)]
-    pub async fn has_saved_connection(&self, ssid: &str) -> Result<bool, ConnectionError> {
-        self.nmrs.has_saved_connection(ssid).await
+    pub async fn forget(&self, ssid: &str) -> Result<(), ConnectionError> {
+        self.nmrs.forget(ssid).await
     }
+
+    // Saved Connections
 
     pub async fn get_saved_connection_uuid(
         &self,
@@ -122,13 +108,7 @@ impl NetworkManager {
         self.nmrs.update_saved_connection(uuid, patch).await
     }
 
-    pub async fn airplane_mode_state(&self) -> Result<AirplaneModeState, ConnectionError> {
-        self.nmrs.airplane_mode_state().await
-    }
-
-    pub async fn set_airplane_mode(&self, enabled: bool) -> Result<(), ConnectionError> {
-        self.nmrs.set_airplane_mode(enabled).await
-    }
+    // Radio & Hardware State
 
     pub async fn wifi_state(&self) -> Result<RadioState, ConnectionError> {
         self.nmrs.wifi_state().await
@@ -138,7 +118,11 @@ impl NetworkManager {
         self.nmrs.set_wireless_enabled(enabled).await
     }
 
-    pub async fn disconnect(&self) -> Result<(), ConnectionError> {
-        self.nmrs.disconnect(None).await
+    pub async fn airplane_mode_state(&self) -> Result<AirplaneModeState, ConnectionError> {
+        self.nmrs.airplane_mode_state().await
+    }
+
+    pub async fn set_airplane_mode(&self, enabled: bool) -> Result<(), ConnectionError> {
+        self.nmrs.set_airplane_mode(enabled).await
     }
 }

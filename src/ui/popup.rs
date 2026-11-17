@@ -36,7 +36,7 @@ pub fn popup_rect(f: &mut Frame, config: &PopupConfig) -> Rect {
     area
 }
 
-pub fn draw_auth(f: &mut Frame, input: &Input, network: Network, config: &PopupConfig) {
+pub fn draw_auth(f: &mut Frame, input: &Input, network: &Network, config: &PopupConfig) {
     let popup_rect = popup_rect(f, config);
 
     let block = Block::bordered()

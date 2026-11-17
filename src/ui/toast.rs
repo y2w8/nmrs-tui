@@ -50,6 +50,17 @@ pub struct UrgencyConfig {
     default_duration_secs: f32,
 }
 
+impl ToastConfig {
+    fn urgency(&self, urgency: Urgency) -> &UrgencyConfig {
+        match urgency {
+            Urgency::Normal => &self.normal,
+            Urgency::Success => &self.success,
+            Urgency::Warning => &self.warning,
+            Urgency::Critical => &self.critical,
+        }
+    }
+}
+
 impl Toast {
     pub fn new<T>(
         config: &ToastConfig,
@@ -61,12 +72,7 @@ impl Toast {
     where
         T: Into<Cow<'static, str>>,
     {
-        let urgency_config = match urgency {
-            Urgency::Normal => &config.normal,
-            Urgency::Success => &config.success,
-            Urgency::Warning => &config.warning,
-            Urgency::Critical => &config.critical,
-        };
+        let urgency_config = config.urgency(urgency);
 
         let title: Cow<'static, str> = match title {
             Some(t) => t.into(),
@@ -108,12 +114,7 @@ pub fn draw(f: &mut Frame, config: &ToastConfig, toasts: &[Toast]) {
             },
         );
 
-        let urgency_config = match toast.urgency {
-            Urgency::Normal => &config.normal,
-            Urgency::Success => &config.success,
-            Urgency::Warning => &config.warning,
-            Urgency::Critical => &config.critical,
-        };
+        let urgency_config = config.urgency(toast.urgency);
 
         let title = Line::raw(toast.title.as_ref())
             .style(urgency_config.title_style.format().unwrap_or_default())

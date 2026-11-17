@@ -11,6 +11,10 @@ impl<T> StatefulList<T> {
         Self { state, items }
     }
 
+    pub fn selected(&self) -> Option<&T> {
+        self.state.selected().and_then(|i| self.items.get(i))
+    }
+
     pub fn set_items(&mut self, items: Vec<T>) {
         self.items = items;
         // clamp selection to new length, or select first if nothing selected

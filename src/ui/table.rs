@@ -15,7 +15,7 @@ use ratatui::{
     layout::{Constraint, Flex, Rect},
     style::Style,
     text::Line,
-    widgets::{Block, BorderType, Row, Table},
+    widgets::{Block, Row, Table},
 };
 use serde::{Deserialize, Serialize};
 
@@ -85,21 +85,18 @@ pub fn network_info<'a>(net: &Network) -> (&'a str, String, &'a str) {
         "Open"
     };
 
-    let (strength, bars) = if let Some(strength) = net.strength {
-        let bars = if strength > 80 {
-            "󰤨"
-        } else if strength > 60 {
-            "󰤥"
-        } else if strength > 40 {
-            "󰤢"
-        } else if strength > 20 {
-            "󰤟"
-        } else {
-            "󰤯"
-        };
-        (strength.to_string(), bars)
-    } else {
-        ("Unknown".to_string(), "󰤮")
+    let (strength, bars) = match net.strength {
+        Some(strength) => {
+            let bars = match strength {
+                81.. => "󰤨",
+                61..=80 => "󰤥",
+                41..=60 => "󰤢",
+                21..=40 => "󰤟",
+                _ => "󰤯",
+            };
+            (strength.to_string(), bars)
+        }
+        None => ("Unknown".to_string(), "󰤮"),
     };
 
     (security, strength, bars)
@@ -114,28 +111,20 @@ pub fn draw<Any, K: Eq + Hash>(
 ) {
     let area = area::fill_rect(area, config.margin);
 
-    let border_style: Style = if is_active {
-        config.border.style_active.format().unwrap_or_default()
+    let (border_style, border_type, header_style, row_style) = if is_active {
+        (
+            config.border.style_active.format().unwrap_or_default(),
+            config.border.type_active,
+            config.header.style_active.format().unwrap_or_default(),
+            Style::new().on_dark_gray(),
+        )
     } else {
-        config.border.style_normal.format().unwrap_or_default()
-    };
-
-    let border_type: BorderType = if is_active {
-        config.border.type_active
-    } else {
-        config.border.type_normal
-    };
-
-    let header_style: Style = if is_active {
-        config.header.style_active.format().unwrap_or_default()
-    } else {
-        config.header.style_normal.format().unwrap_or_default()
-    };
-
-    let row_style = if is_active {
-        Style::new().on_dark_gray()
-    } else {
-        Style::new()
+        (
+            config.border.style_normal.format().unwrap_or_default(),
+            config.border.type_normal,
+            config.header.style_normal.format().unwrap_or_default(),
+            Style::new(),
+        )
     };
 
     let (columns, constraints): (Vec<Line>, Vec<Constraint>) = config

@@ -1,6 +1,6 @@
 use std::{borrow::Cow, time::Duration};
 
-use nmrs::{ConnectionError, Network, WifiDevice, WifiSecurity};
+use nmrs::{ConnectionError, Network, SettingsPatch, WifiDevice, WifiSecurity};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::{
@@ -24,6 +24,7 @@ pub enum Action {
     NetworkScanResult(Box<NetworkScanResult>),
     Connect(Box<ConnectRequest>),
     Forget { ssid: String },
+    ToggleAutoconnect { ssid: String },
     ToggleAirplaneMode,
     TogglePower,
     Disconnect,
@@ -84,89 +85,15 @@ impl ActionHandler {
 
     pub async fn handle_actions(app: &mut App) -> anyhow::Result<()> {
         while let Ok(action) = app.action.rx.try_recv() {
-            // trace!("Action: {:?}", action);
-
             match action {
+                // App & Lifecycle
                 Action::Quit => app.quit(),
-                Action::Tick(delta) => {
-                    // Toast duration timer
-                    app.toasts.iter_mut().for_each(|toast| {
-                        toast.duration = toast.duration.saturating_sub(delta);
-                    });
-                    app.toasts.retain(|toast| !toast.duration.is_zero());
-
-                    // Timers
-                    let finished: Vec<Action> = app
-                        .timers_mut()
-                        .into_iter()
-                        .filter(|t| t.enabled)
-                        .filter_map(|timer| {
-                            timer.tick(delta);
-                            if timer.is_finished() {
-                                timer.reset();
-                                Some(timer.on_finish.clone())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-
-                    for action in finished {
-                        app.action.send(action);
-                    }
-                }
-                Action::Refresh => {
-                    if app.scan.enabled {
-                        let action_tx = app.action.sender();
-                        let network_manager = app.network_manager.clone();
-                        tokio::spawn(async move {
-                            match tokio::try_join!(
-                                network_manager.networks_list(),
-                                network_manager.get_devices()
-                            ) {
-                                Ok(((known, available), devices)) => {
-                                    _ = action_tx.send(Action::NetworkScanResult(Box::new(
-                                        NetworkScanResult {
-                                            known,
-                                            available,
-                                            devices,
-                                        },
-                                    )));
-                                }
-                                Err(_) => {
-                                    _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                        title: None,
-                                        msg: "Refresh failed!".into(),
-                                        urgency: Urgency::Critical,
-                                        duration: None,
-                                    })));
-                                }
-                            }
-                        });
-                    }
-                }
-                Action::SetFocus(new_focus) => {
-                    debug!("Set focus to: {:?}!", new_focus);
-                    app.last_focus = app.focus;
-                    app.focus = new_focus;
-                    match new_focus {
-                        Focus::Popup(popup) => {
-                            if popup == Popups::Password {
-                                app.scan.disable();
-                                debug!("Scan disabled (password popup open)");
-                            } else {
-                                app.scan.enable();
-                            }
-                        }
-                        Focus::Tab(_) => app.scan.enable(),
-                    }
-                }
-
+                Action::Tick(delta) => Self::handle_tick(app, delta),
+                Action::SetFocus(new_focus) => Self::set_focus(app, new_focus),
                 Action::SetStatus(new_status) => {
                     debug!("Set status to: {:?}!", new_status);
                     app.status = new_status;
                 }
-
                 Action::SetInputMode(new_inputmode) => {
                     debug!("Set InputMode to: {:?}!", new_inputmode);
                     app.input.mode = new_inputmode;
@@ -174,226 +101,17 @@ impl ActionHandler {
                     app.input.reset_cursor();
                 }
 
-                // Network
+                // Network Commands
+                Action::Refresh => Self::spawn_refresh(app),
                 Action::NetworkScanResult(box_data) => {
-                    let scan_result = *box_data;
-                    app.network_manager.current_network =
-                        app.network_manager.current_network().await;
-                    app.network_manager.current_network_info =
-                        if let Some(network) = &app.network_manager.current_network {
-                            match app.network_manager.show_details(network).await {
-                                Ok(conn_info) => Some(conn_info),
-                                Err(_) => {
-                                    app.action.send(Action::ShowToast(Box::new(ToastRequest {
-                                        title: None,
-                                        msg: "Failed to get current network info!".into(),
-                                        urgency: Urgency::Critical,
-                                        duration: None,
-                                    })));
-                                    None
-                                }
-                            }
-                        } else {
-                            None
-                        };
-
-                    app.known_networks.set_items(scan_result.known);
-                    app.available_networks.set_items(scan_result.available);
-                    app.devices.set_items(scan_result.devices);
+                    Self::apply_scan_result(app, *box_data).await;
                 }
-                Action::Connect(box_data) => {
-                    let conn_req = *box_data;
-                    app.action.send(Action::SetStatus(Status::Connecting(
-                        conn_req.ssid.to_string(),
-                    )));
-
-                    let action_tx = app.action.sender();
-                    let network_manager = app.network_manager.clone();
-                    tokio::spawn(async move {
-                        let msg;
-                        let urgency;
-                        match network_manager
-                            .connect(&conn_req.ssid, conn_req.interface, conn_req.credentials)
-                            .await
-                        {
-                            Ok(Ok(_)) => {
-                                msg = "Connected!";
-                                urgency = Urgency::Success;
-                            }
-                            Ok(Err(ConnectionError::NotFound)) => {
-                                msg = "Network not visible — is it in range?";
-                                urgency = Urgency::Critical;
-                            }
-                            Ok(Err(ConnectionError::AuthFailed)) => {
-                                _ = action_tx.send(Action::Forget {
-                                    ssid: conn_req.ssid.to_string(),
-                                });
-                                msg = "Wrong password!";
-                                urgency = Urgency::Critical;
-                            }
-                            Ok(Err(ConnectionError::Timeout)) => {
-                                msg = "Connection timed out — try increasing the timeout";
-                                urgency = Urgency::Critical;
-                            }
-                            Ok(Err(ConnectionError::DhcpFailed)) => {
-                                msg = "Failed to get an IP address";
-                                urgency = Urgency::Critical;
-                            }
-                            Ok(Err(_)) => {
-                                msg = "Connection failed!";
-                                urgency = Urgency::Critical;
-                            }
-                            Err(_) => {
-                                msg = "Operation timed out!";
-                                urgency = Urgency::Critical;
-                                error!("{}", msg);
-                            }
-                        }
-                        _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                            title: None,
-                            msg: msg.into(),
-                            urgency,
-                            duration: None,
-                        })));
-
-                        _ = action_tx.send(Action::SetStatus(Status::None));
-
-                        //  Trigger a refresh so current_network update
-                        _ = action_tx.send(Action::Refresh);
-                    });
-                }
-                Action::Forget { ssid } => {
-                    let network_manager = app.network_manager.clone();
-                    let action_tx = app.action.sender();
-                    tokio::spawn(async move {
-                        match network_manager.forget(&ssid).await {
-                            Ok(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Forgotten!".into(),
-                                    urgency: Urgency::Success,
-                                    duration: None,
-                                })));
-                            }
-                            Err(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Forget failed!".into(),
-                                    urgency: Urgency::Critical,
-                                    duration: None,
-                                })));
-                            }
-                        }
-                        //  Trigger a refresh so current_network update
-                        _ = action_tx.send(Action::Refresh);
-                    });
-                }
-                Action::ToggleAirplaneMode => {
-                    let network_manager = app.network_manager.clone();
-                    let action_tx = app.action.sender();
-                    tokio::spawn(async move {
-                        let enabled = match network_manager.airplane_mode_state().await {
-                            Ok(state) => state.is_airplane_mode(),
-                            Err(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Failed to get airplane mode state!".into(),
-                                    urgency: Urgency::Critical,
-                                    duration: None,
-                                })));
-                                return;
-                            }
-                        };
-
-                        let (msg, urgency) = match network_manager.set_airplane_mode(!enabled).await
-                        {
-                            Ok(_) => {
-                                debug!("Airplane set to {}", !enabled);
-
-                                (
-                                    format!(
-                                        "Airplane mode {}",
-                                        if !enabled { "On" } else { "Off" }
-                                    ),
-                                    Urgency::Success,
-                                )
-                            }
-                            Err(_) => (
-                                "Toggle airplane mode failed!".to_string(),
-                                Urgency::Critical,
-                            ),
-                        };
-                        _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                            title: None,
-                            msg: msg.into(),
-                            urgency,
-                            duration: None,
-                        })));
-                        _ = action_tx.send(Action::Refresh);
-                    });
-                }
-                Action::TogglePower => {
-                    let network_manager = app.network_manager.clone();
-                    let action_tx = app.action.sender();
-                    tokio::spawn(async move {
-                        let enabled = match network_manager.wifi_state().await {
-                            Ok(wifi_state) => wifi_state.enabled,
-                            Err(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Failed to get wifi state!".into(),
-                                    urgency: Urgency::Critical,
-                                    duration: None,
-                                })));
-                                return;
-                            }
-                        };
-
-                        let (msg, urgency) =
-                            match network_manager.set_wireless_enabled(!enabled).await {
-                                Ok(_) => {
-                                    debug!("Wifi radio set to {}", !enabled);
-                                    (
-                                        format!("Wifi {}", if !enabled { "On" } else { "Off" }),
-                                        Urgency::Success,
-                                    )
-                                }
-                                Err(_) => ("Toggle power failed!".to_string(), Urgency::Critical),
-                            };
-                        _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                            title: None,
-                            msg: msg.into(),
-                            urgency,
-                            duration: None,
-                        })));
-                        _ = action_tx.send(Action::Refresh);
-                    });
-                }
-                Action::Disconnect => {
-                    let network_manager = app.network_manager.clone();
-                    let action_tx = app.action.sender();
-                    tokio::spawn(async move {
-                        match network_manager.disconnect().await {
-                            Ok(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Disconnected!".into(),
-                                    urgency: Urgency::Success,
-                                    duration: None,
-                                })));
-                            }
-                            Err(_) => {
-                                _ = action_tx.send(Action::ShowToast(Box::new(ToastRequest {
-                                    title: None,
-                                    msg: "Disconnect failed!".into(),
-                                    urgency: Urgency::Critical,
-                                    duration: None,
-                                })));
-                            }
-                        }
-                        _ = action_tx.send(Action::Refresh);
-                    });
-                }
+                Action::Connect(box_data) => Self::spawn_connect(app, *box_data),
+                Action::Forget { ssid } => Self::spawn_forget(app, ssid),
+                Action::ToggleAutoconnect { ssid } => Self::spawn_toggle_autoconnect(app, ssid),
+                Action::ToggleAirplaneMode => Self::spawn_toggle_airplane(app),
+                Action::TogglePower => Self::spawn_toggle_power(app),
+                Action::Disconnect => Self::spawn_disconnect(app),
 
                 // UI
                 Action::NextItem(tab) => match tab {
@@ -419,5 +137,268 @@ impl ActionHandler {
             }
         }
         Ok(())
+    }
+
+    // State Handlers
+
+    fn handle_tick(app: &mut App, delta: Duration) {
+        for toast in &mut app.toasts {
+            toast.duration = toast.duration.saturating_sub(delta);
+        }
+        app.toasts.retain(|toast| !toast.duration.is_zero());
+
+        let finished: Vec<Action> = app
+            .timers_mut()
+            .into_iter()
+            .filter(|t| t.enabled)
+            .filter_map(|timer| {
+                timer.tick(delta);
+                if timer.is_finished() {
+                    timer.reset();
+                    Some(timer.on_finish.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for action in finished {
+            app.action.send(action);
+        }
+    }
+
+    fn set_focus(app: &mut App, new_focus: Focus) {
+        debug!("Set focus to: {:?}!", new_focus);
+        app.last_focus = app.focus;
+        app.focus = new_focus;
+        match new_focus {
+            Focus::Popup(Popups::Password) => {
+                app.scan.disable();
+                debug!("Scan disabled (password popup open)");
+            }
+            Focus::Tab(_) => app.scan.enable(),
+        }
+    }
+
+    async fn apply_scan_result(app: &mut App, scan_result: NetworkScanResult) {
+        app.network_manager.current_network = app.network_manager.current_network().await;
+        app.network_manager.current_network_info =
+            if let Some(network) = &app.network_manager.current_network {
+                match app.network_manager.show_details(network).await {
+                    Ok(conn_info) => Some(conn_info),
+                    Err(_) => {
+                        app.action
+                            .send(Action::toast_err("Failed to get current network info!"));
+                        None
+                    }
+                }
+            } else {
+                None
+            };
+
+        app.known_networks.set_items(scan_result.known);
+        app.available_networks.set_items(scan_result.available);
+        app.devices.set_items(scan_result.devices);
+    }
+
+    // Background Network Tasks
+
+    fn spawn_refresh(app: &App) {
+        if !app.scan.enabled {
+            return;
+        }
+        let action_tx = app.action.sender();
+        let network_manager = app.network_manager.clone();
+        tokio::spawn(async move {
+            match tokio::try_join!(
+                network_manager.networks_list(),
+                network_manager.get_devices()
+            ) {
+                Ok(((known, available), devices)) => {
+                    _ = action_tx.send(Action::NetworkScanResult(Box::new(NetworkScanResult {
+                        known,
+                        available,
+                        devices,
+                    })));
+                }
+                Err(_) => {
+                    _ = action_tx.send(Action::toast_err("Refresh failed!"));
+                }
+            }
+        });
+    }
+
+    fn spawn_connect(app: &App, conn_req: ConnectRequest) {
+        app.action
+            .send(Action::SetStatus(Status::Connecting(conn_req.ssid.clone())));
+
+        let action_tx = app.action.sender();
+        let network_manager = app.network_manager.clone();
+        tokio::spawn(async move {
+            let toast = match network_manager
+                .connect(&conn_req.ssid, conn_req.interface, conn_req.credentials)
+                .await
+            {
+                Ok(Ok(_)) => Action::toast_ok("Connected!"),
+                Ok(Err(ConnectionError::NotFound)) => {
+                    Action::toast_err("Network not visible — is it in range?")
+                }
+                Ok(Err(ConnectionError::AuthFailed)) => {
+                    _ = action_tx.send(Action::Forget {
+                        ssid: conn_req.ssid,
+                    });
+                    Action::toast_err("Wrong password!")
+                }
+                Ok(Err(ConnectionError::Timeout)) => {
+                    Action::toast_err("Connection timed out — try increasing the timeout")
+                }
+                Ok(Err(ConnectionError::DhcpFailed)) => {
+                    Action::toast_err("Failed to get an IP address")
+                }
+                Ok(Err(_)) => Action::toast_err("Connection failed!"),
+                Err(_) => {
+                    let msg = "Operation timed out!";
+                    error!("{}", msg);
+                    Action::toast_err(msg)
+                }
+            };
+            _ = action_tx.send(toast);
+            _ = action_tx.send(Action::SetStatus(Status::None));
+            _ = action_tx.send(Action::Refresh);
+        });
+    }
+
+    fn spawn_forget(app: &App, ssid: String) {
+        let network_manager = app.network_manager.clone();
+        let action_tx = app.action.sender();
+        tokio::spawn(async move {
+            let toast = match network_manager.forget(&ssid).await {
+                Ok(_) => Action::toast_ok("Forgotten!"),
+                Err(_) => Action::toast_err("Forget failed!"),
+            };
+            _ = action_tx.send(toast);
+            _ = action_tx.send(Action::Refresh);
+        });
+    }
+
+    fn spawn_toggle_autoconnect(app: &App, ssid: String) {
+        let network_manager = app.network_manager.clone();
+        let action_tx = app.action.sender();
+        tokio::spawn(async move {
+            let uuid = match network_manager.get_saved_connection_uuid(&ssid).await {
+                Ok(Some(uuid)) => uuid,
+                Ok(None) => return debug!("can't find uuid for {}!", ssid),
+                Err(_) => {
+                    _ = action_tx.send(Action::toast_err("Failed to look up saved connection!"));
+                    return;
+                }
+            };
+            let saved_conn = match network_manager.get_saved_connection(&uuid).await {
+                Ok(conn) => conn,
+                Err(_) => {
+                    _ = action_tx.send(Action::toast_err("Failed to get the saved connection!"));
+                    return;
+                }
+            };
+            let mut patch = SettingsPatch::default();
+            patch.autoconnect = Some(!saved_conn.autoconnect);
+
+            let toast = match network_manager.update_saved_connection(&uuid, patch).await {
+                Ok(_) => Action::toast_ok(format!(
+                    "Auto Connect: {}",
+                    if !saved_conn.autoconnect { "On" } else { "Off" }
+                )),
+                Err(_) => Action::toast_err("Failed to update the saved connection!"),
+            };
+            _ = action_tx.send(toast);
+        });
+    }
+
+    fn spawn_toggle_airplane(app: &App) {
+        let network_manager = app.network_manager.clone();
+        let action_tx = app.action.sender();
+        tokio::spawn(async move {
+            let enabled = match network_manager.airplane_mode_state().await {
+                Ok(state) => state.is_airplane_mode(),
+                Err(_) => {
+                    _ = action_tx.send(Action::toast_err("Failed to get airplane mode state!"));
+                    return;
+                }
+            };
+
+            let toast = match network_manager.set_airplane_mode(!enabled).await {
+                Ok(_) => {
+                    debug!("Airplane set to {}", !enabled);
+                    Action::toast_ok(format!(
+                        "Airplane mode {}",
+                        if !enabled { "On" } else { "Off" }
+                    ))
+                }
+                Err(_) => Action::toast_err("Toggle airplane mode failed!"),
+            };
+            _ = action_tx.send(toast);
+            _ = action_tx.send(Action::Refresh);
+        });
+    }
+
+    fn spawn_toggle_power(app: &App) {
+        let network_manager = app.network_manager.clone();
+        let action_tx = app.action.sender();
+        tokio::spawn(async move {
+            let enabled = match network_manager.wifi_state().await {
+                Ok(wifi_state) => wifi_state.enabled,
+                Err(_) => {
+                    _ = action_tx.send(Action::toast_err("Failed to get wifi state!"));
+                    return;
+                }
+            };
+
+            let toast = match network_manager.set_wireless_enabled(!enabled).await {
+                Ok(_) => {
+                    debug!("Wifi radio set to {}", !enabled);
+                    Action::toast_ok(format!("Wifi {}", if !enabled { "On" } else { "Off" }))
+                }
+                Err(_) => Action::toast_err("Toggle power failed!"),
+            };
+            _ = action_tx.send(toast);
+            _ = action_tx.send(Action::Refresh);
+        });
+    }
+
+    fn spawn_disconnect(app: &App) {
+        let network_manager = app.network_manager.clone();
+        let action_tx = app.action.sender();
+        tokio::spawn(async move {
+            let toast = match network_manager.disconnect().await {
+                Ok(_) => Action::toast_ok("Disconnected!"),
+                Err(_) => Action::toast_err("Disconnect failed!"),
+            };
+            _ = action_tx.send(toast);
+            _ = action_tx.send(Action::Refresh);
+        });
+    }
+}
+
+impl Action {
+    pub fn toast(
+        title: Option<Cow<'static, str>>,
+        msg: impl Into<Cow<'static, str>>,
+        urgency: Urgency,
+        duration: Option<f32>,
+    ) -> Self {
+        Self::ShowToast(Box::new(ToastRequest {
+            title,
+            msg: msg.into(),
+            urgency,
+            duration,
+        }))
+    }
+
+    pub fn toast_ok(msg: impl Into<Cow<'static, str>>) -> Self {
+        Self::toast(None, msg, Urgency::Success, None)
+    }
+
+    pub fn toast_err(msg: impl Into<Cow<'static, str>>) -> Self {
+        Self::toast(None, msg, Urgency::Critical, None)
     }
 }

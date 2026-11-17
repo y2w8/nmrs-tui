@@ -9,18 +9,14 @@ use crate::app::{Focus, Popups, Tabs};
 
 pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
     let help_msg = match focus {
-        Focus::Tab(tab) => match tab {
-            Tabs::KnownNetworks => {
-                "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | d Forget | t Autoconnect | r Scan | ⇄ Nav"
-            }
-
-            Tabs::AvailableNetworks => "k,  Up | j,  Down | 󱁐  or ↵  Connect | r Scan | ⇄ Nav",
-
-            Tabs::Devices => "r Scan | o Toggle Power | a Toggle Airplane | ⇄ Nav",
-        },
-        Focus::Popup(popup) => match popup {
-            Popups::Password => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
-        },
+        Focus::Tab(Tabs::KnownNetworks) => {
+            "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | d Forget | t Autoconnect | r Scan | ⇄ Nav"
+        }
+        Focus::Tab(Tabs::AvailableNetworks) => {
+            "k,  Up | j,  Down | 󱁐  or ↵  Connect | r Scan | ⇄ Nav"
+        }
+        Focus::Tab(Tabs::Devices) => "r Scan | o Toggle Power | a Toggle Airplane | ⇄ Nav",
+        Focus::Popup(Popups::Password) => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
     };
 
     f.render_widget(
