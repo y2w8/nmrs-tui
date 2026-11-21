@@ -5,40 +5,10 @@ use crate::{
     config::Config,
     network_manager::NetworkManager,
     timer::Timer,
-    ui::{input::Input, list::StatefulList, toast::Toast},
+    ui::{list::StatefulList, popup::Popups, tabs::Tabs, toast::Toast},
 };
 use anyhow::Result;
 use nmrs::{Network, WifiDevice};
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Tabs {
-    KnownNetworks,
-    AvailableNetworks,
-    Devices,
-}
-
-impl Tabs {
-    pub fn next(self) -> Self {
-        match self {
-            Self::KnownNetworks => Self::AvailableNetworks,
-            Self::AvailableNetworks => Self::Devices,
-            Self::Devices => Self::KnownNetworks,
-        }
-    }
-
-    pub fn prev(self) -> Self {
-        match self {
-            Self::KnownNetworks => Self::Devices,
-            Self::AvailableNetworks => Self::KnownNetworks,
-            Self::Devices => Self::AvailableNetworks,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub enum Popups {
-    Password,
-}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Status {
@@ -47,7 +17,7 @@ pub enum Status {
     None,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Focus {
     Tab(Tabs),
     Popup(Popups),
@@ -67,7 +37,6 @@ pub struct App {
 
     // Data
     pub status: Status,
-    pub input: Input,
     pub focus: Focus,
     pub last_focus: Focus,
     pub toasts: Vec<Toast>,
@@ -97,7 +66,6 @@ impl App {
 
             // Data
             status: Status::None,
-            input: Input::new(),
             focus: Focus::Tab(Tabs::KnownNetworks),
             last_focus: Focus::Tab(Tabs::KnownNetworks),
             toasts: Vec::new(),
@@ -115,13 +83,7 @@ impl App {
     }
 
     pub fn selected(&self) -> Option<Selected> {
-        let focus = match self.focus {
-            // If focus is popup we fallback to last_focus so we can get selected
-            Focus::Popup(_) => self.last_focus,
-            f => f,
-        };
-
-        match focus {
+        match &self.focus {
             Focus::Tab(Tabs::KnownNetworks) => self
                 .known_networks
                 .selected()

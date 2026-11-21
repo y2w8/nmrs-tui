@@ -1,12 +1,12 @@
-use std::{borrow::Cow, time::Duration};
+use std::{borrow::Cow, mem, time::Duration};
 
 use nmrs::{ConnectionError, Network, SettingsPatch, WifiDevice, WifiSecurity};
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 
 use crate::{
-    app::{App, Focus, Popups, Status, Tabs},
+    app::{App, Focus, Status},
     ui::{
-        input::InputMode,
+        tabs::Tabs,
         toast::{Toast, Urgency},
     },
 };
@@ -18,7 +18,6 @@ pub enum Action {
     Refresh,
     SetFocus(Focus),
     SetStatus(Status),
-    SetInputMode(InputMode),
 
     // Network Commands
     NetworkScanResult(Box<NetworkScanResult>),
@@ -94,12 +93,6 @@ impl ActionHandler {
                     debug!("Set status to: {:?}!", new_status);
                     app.status = new_status;
                 }
-                Action::SetInputMode(new_inputmode) => {
-                    debug!("Set InputMode to: {:?}!", new_inputmode);
-                    app.input.mode = new_inputmode;
-                    app.input.value.clear();
-                    app.input.reset_cursor();
-                }
 
                 // Network Commands
                 Action::Refresh => Self::spawn_refresh(app),
@@ -169,15 +162,14 @@ impl ActionHandler {
 
     fn set_focus(app: &mut App, new_focus: Focus) {
         debug!("Set focus to: {:?}!", new_focus);
-        app.last_focus = app.focus;
-        app.focus = new_focus;
         match new_focus {
-            Focus::Popup(Popups::Password) => {
+            Focus::Popup(_) => {
                 app.scan.disable();
-                debug!("Scan disabled (password popup open)");
+                debug!("Scan disabled (popup is open)");
             }
             Focus::Tab(_) => app.scan.enable(),
         }
+        app.last_focus = mem::replace(&mut app.focus, new_focus);
     }
 
     async fn apply_scan_result(app: &mut App, scan_result: NetworkScanResult) {

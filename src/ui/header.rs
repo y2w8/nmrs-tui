@@ -5,14 +5,11 @@ use ratatui::{
     text::{Line, Span},
 };
 
-use crate::{
-    app::{App, Status},
-    ui::table::network_info,
-};
+use crate::app::{App, Status};
 
 pub fn draw(f: &mut Frame<'_>, area: Rect, app: &App) {
     let chunks = Layout::horizontal([
-        Constraint::Fill(12),
+        Constraint::Fill(1),
         Constraint::Fill(1),
         Constraint::Fill(1),
     ])
@@ -36,7 +33,20 @@ pub fn draw(f: &mut Frame<'_>, area: Rect, app: &App) {
 
     //  Right: Currently connected network
     let right_line = if let Some(current) = &app.network_manager.current_network {
-        let (_, strength, bars) = network_info(current);
+        let (strength, bars) = match current.strength {
+            Some(strength) => {
+                let bars = match strength {
+                    81.. => "󰤨",
+                    61..=80 => "󰤥",
+                    41..=60 => "󰤢",
+                    21..=40 => "󰤟",
+                    _ => "󰤯",
+                };
+                (strength.to_string(), bars)
+            }
+            None => ("Unknown".to_string(), "󰤮"),
+        };
+
         Line::from(vec![
             Span::styled(format!("{} ", bars), Style::new().fg(Color::Green)),
             Span::raw(format!("{} ({}%) ", current.ssid, strength)),

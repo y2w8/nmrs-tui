@@ -11,7 +11,7 @@ use serde::{Deserialize, Serialize};
 use crate::ui::{
     area::{Border, Position},
     margin::Margin,
-    popup::{self, PopupConfig},
+    popup::{PopupConfig, Popups},
     style_config::StyleConfig,
 };
 
@@ -99,7 +99,7 @@ pub fn draw(f: &mut Frame, config: &ToastConfig, toasts: &[Toast]) {
             break;
         };
 
-        let area = popup::popup_rect(
+        let area = Popups::rect(
             f,
             &PopupConfig {
                 width: 4 + toast.msg.chars().count() as u16, // 4 = borders(2) + padding(2)

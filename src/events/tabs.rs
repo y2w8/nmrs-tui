@@ -1,37 +1,22 @@
-use crossterm::event::{KeyCode, KeyEvent, KeyEventKind};
+use crossterm::event::{KeyCode, KeyEvent};
 use nmrs::WifiSecurity;
 
 use crate::{
     action::{Action, ConnectRequest},
-    app::{App, Focus, Popups, Selected, Tabs},
-    ui::input::InputMode,
+    app::{App, Focus, Selected},
+    ui::{input::Input, popup::Popups, tabs::Tabs},
 };
 
-pub fn handle_events(app: &mut App, key: KeyEvent) {
-    if key.kind != KeyEventKind::Press {
-        return;
-    }
-
-    match app.focus {
-        Focus::Tab(tab) => handle_tabs(app, key, tab),
-        Focus::Popup(popup) => handle_popups(app, key, popup),
-    }
-}
-
-fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) {
-    if app.input.mode != InputMode::Normal {
-        return;
-    }
-
+pub fn handle(app: &mut App, key: KeyEvent, tab: Tabs) {
     match key.code {
         KeyCode::Char('q') => app.action.send(Action::Quit),
 
         // Navigation
         KeyCode::Tab | KeyCode::Char('l') | KeyCode::Right => {
-            app.focus = Focus::Tab(tab.next());
+            app.action.send(Action::SetFocus(Focus::Tab(tab.next())));
         }
         KeyCode::BackTab | KeyCode::Char('h') | KeyCode::Left => {
-            app.focus = Focus::Tab(tab.prev());
+            app.action.send(Action::SetFocus(Focus::Tab(tab.prev())));
         }
         KeyCode::Char('j') | KeyCode::Down => app.action.send(Action::NextItem(tab)),
         KeyCode::Char('k') | KeyCode::Up => app.action.send(Action::PreviousItem(tab)),
@@ -80,48 +65,12 @@ fn handle_tabs(app: &mut App, key: KeyEvent, tab: Tabs) {
                 if let Some(Selected::Network(net)) = app.selected()
                     && net.is_psk
                 {
-                    app.action
-                        .send(Action::SetFocus(Focus::Popup(Popups::Password)));
-                    app.action.send(Action::SetInputMode(InputMode::Editing));
+                    Popups::Password(Input::new(), Box::new(net)).open(&app.action);
                 }
             }
             Tabs::Devices => {}
         },
 
-        _ => {}
-    }
-}
-
-fn handle_popups(app: &mut App, key: KeyEvent, popup: Popups) {
-    if app.input.mode != InputMode::Editing {
-        return;
-    }
-
-    match key.code {
-        KeyCode::Enter => {
-            if let Some(Selected::Network(net)) = app.selected() {
-                app.action.send(Action::Connect(Box::new(ConnectRequest {
-                    ssid: net.ssid,
-                    interface: None,
-                    credentials: WifiSecurity::WpaPsk {
-                        psk: app.input.value.clone(),
-                    },
-                })));
-                app.action.send(Action::SetInputMode(InputMode::Normal));
-                app.action.send(Action::SetFocus(app.last_focus));
-            }
-        }
-        KeyCode::Tab if popup == Popups::Password => {
-            app.input.hidden_password = !app.input.hidden_password;
-        }
-        KeyCode::Char(to_insert) => app.input.enter_char(to_insert),
-        KeyCode::Backspace => app.input.delete_char(),
-        KeyCode::Left => app.input.move_cursor_left(),
-        KeyCode::Right => app.input.move_cursor_right(),
-        KeyCode::Esc => {
-            app.action.send(Action::SetInputMode(InputMode::Normal));
-            app.action.send(Action::SetFocus(app.last_focus));
-        }
         _ => {}
     }
 }

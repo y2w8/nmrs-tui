@@ -8,11 +8,99 @@ use ratatui::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::ui::{
-    area::{self, Position},
-    input::Input,
-    margin::Margin,
+use crate::{
+    action::{Action, ActionHandler},
+    app::Focus,
+    ui::{
+        Ui,
+        area::{self, Position},
+        input::Input,
+        margin::Margin,
+    },
 };
+
+#[derive(Debug, Clone)]
+pub enum Popups {
+    Password(Input, Box<Network>),
+}
+
+impl Popups {
+    pub fn open(self, action: &ActionHandler) {
+        action.send(Action::SetFocus(Focus::Popup(self)));
+    }
+
+    pub fn close(&self, action: &ActionHandler, last_focus: Focus) {
+        action.send(Action::SetFocus(last_focus));
+    }
+
+    pub fn rect(f: &mut Frame, config: &PopupConfig) -> Rect {
+        let area = area::anchor_rect(
+            f.area(),
+            config.width,
+            config.height,
+            config.position,
+            config.margin,
+        );
+        f.render_widget(widgets::Clear, area); // Clear the area behind it
+        area
+    }
+
+    pub fn draw(&self, f: &mut Frame, config: &Ui) {
+        match self {
+            Self::Password(input, network) => {
+                let rect = Popups::rect(f, &config.password_popup);
+
+                let block = Block::bordered()
+                    .border_style(Style::default().green().bold())
+                    .border_type(BorderType::Thick);
+
+                let title = Line::from(vec![
+                    Span::raw("Enter the password for "),
+                    Span::styled(&network.ssid, Style::new().bold()),
+                ])
+                .alignment(Alignment::Center);
+
+                let title_widget = Paragraph::new(title).block(block);
+                f.render_widget(title_widget, rect);
+
+                let input_area = Rect::new(rect.x + 1, rect.y + 3, rect.width.saturating_sub(2), 1);
+
+                let input_chunks = Layout::horizontal([
+                    Constraint::Min(0),    // Password input
+                    Constraint::Length(4), // eye icon
+                ])
+                .split(input_area);
+
+                let (mut password, icon): (String, &'static str) = if input.hidden {
+                    (input.value.chars().map(|_| '*').collect(), " 󰈉  ")
+                } else {
+                    (input.value.to_string(), " 󰈈   ")
+                };
+
+                // Horizontal scrolling when password is to long
+                let string_offset = password
+                    .len()
+                    .saturating_sub(input_chunks[0].width.saturating_sub(1) as usize);
+                if string_offset > 0 {
+                    password = password.split_at(string_offset).1.to_string();
+                }
+
+                let password_widget = Paragraph::new(password).style(Style::new().on_dark_gray());
+                f.render_widget(password_widget, input_chunks[0]);
+
+                let icon_widget = Paragraph::new(icon).style(Style::new().green());
+                f.render_widget(icon_widget, input_chunks[1]);
+
+                // Cursor position x
+                let cx = input_chunks[0].x + input.cx as u16;
+
+                // cx_max = position + width - 1 (so the cursor does overlap on eye icon)
+                let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1);
+                f.set_cursor_position(layout::Position::new(cx.min(cx_max), input_chunks[0].y))
+            }
+        }
+    }
+}
 
 #[derive(Deserialize, Serialize)]
 pub struct PopupConfig {
@@ -22,73 +110,4 @@ pub struct PopupConfig {
     pub position: Position,
     #[serde(default)]
     pub margin: Margin,
-}
-
-pub fn popup_rect(f: &mut Frame, config: &PopupConfig) -> Rect {
-    let area = area::anchor_rect(
-        f.area(),
-        config.width,
-        config.height,
-        config.position,
-        config.margin,
-    );
-    f.render_widget(widgets::Clear, area); // Clear the area behind it
-    area
-}
-
-pub fn draw_auth(f: &mut Frame, input: &Input, network: &Network, config: &PopupConfig) {
-    let popup_rect = popup_rect(f, config);
-
-    let block = Block::bordered()
-        .border_style(Style::default().green().bold())
-        .border_type(BorderType::Thick);
-
-    let title = Line::from(vec![
-        Span::raw("Enter the password for "),
-        Span::styled(&network.ssid, Style::new().bold()),
-    ])
-    .alignment(Alignment::Center);
-
-    let title_widget = Paragraph::new(title).block(block);
-    f.render_widget(title_widget, popup_rect);
-
-    let input_area = Rect::new(
-        popup_rect.x + 1,
-        popup_rect.y + 3,
-        popup_rect.width.saturating_sub(2),
-        1,
-    );
-
-    let input_chunks = Layout::horizontal([
-        Constraint::Min(0),    // Password input
-        Constraint::Length(4), // eye icon
-    ])
-    .split(input_area);
-
-    let (mut password, icon): (String, &'static str) = if input.hidden_password {
-        (input.value.chars().map(|_| '*').collect(), " 󰈉  ")
-    } else {
-        (input.value.to_string(), " 󰈈   ")
-    };
-
-    // Horizontal scrolling when password is to long
-    let string_offset = password
-        .len()
-        .saturating_sub(input_chunks[0].width.saturating_sub(1) as usize);
-    if string_offset > 0 {
-        password = password.split_at(string_offset).1.to_string();
-    }
-
-    let password_widget = Paragraph::new(password).style(Style::new().on_dark_gray());
-    f.render_widget(password_widget, input_chunks[0]);
-
-    let icon_widget = Paragraph::new(icon).style(Style::new().green());
-    f.render_widget(icon_widget, input_chunks[1]);
-
-    // Cursor position x
-    let cx = input_chunks[0].x + input.cx as u16;
-
-    // cx_max = position + width - 1 (so the cursor does overlap on eye icon)
-    let cx_max = input_chunks[0].x + input_chunks[0].width.saturating_sub(1);
-    f.set_cursor_position(layout::Position::new(cx.min(cx_max), input_chunks[0].y))
 }

@@ -15,9 +15,9 @@ use tokio_stream::StreamExt;
 
 use crate::{
     action::{Action, ActionHandler},
-    app::{App, Focus, Popups, Selected},
+    app::{App, Focus},
     events,
-    ui::{PanelKind, header, help, popup, table, toast},
+    ui::{PanelKind, header, help, tabs::Tabs, toast},
 };
 
 pub struct Tui {
@@ -81,21 +81,15 @@ impl Tui {
         for (kind, area) in panel_kinds.into_iter().zip(chunks.iter()) {
             match kind {
                 PanelKind::Header => header::draw(f, *area, app),
-                PanelKind::KnownNetworks => table::draw_known_network(f, *area, app),
-                PanelKind::AvailableNetworks => table::draw_available_network(f, *area, app),
-                PanelKind::Devices => table::draw_devices(f, *area, app),
-                PanelKind::Help => help::draw(f, *area, app.focus),
+                PanelKind::KnownNetworks => Tabs::KnownNetworks.draw(f, *area, app),
+                PanelKind::AvailableNetworks => Tabs::AvailableNetworks.draw(f, *area, app),
+                PanelKind::Devices => Tabs::Devices.draw(f, *area, app),
+                PanelKind::Help => help::draw(f, *area, &app.focus),
             }
         }
 
-        if let Focus::Popup(Popups::Password) = app.focus {
-            if let Some(Selected::Network(net)) = app.selected() {
-                popup::draw_auth(f, &app.input, &net, &app.config.ui.password_popup);
-            } else {
-                app.action
-                    .send(Action::toast_err("Can't find selected network"));
-                app.action.send(Action::SetFocus(app.last_focus));
-            }
+        if let Focus::Popup(popup) = &app.focus {
+            popup.draw(f, &app.config.ui);
         }
 
         toast::draw(f, &app.config.ui.toast, &app.toasts);

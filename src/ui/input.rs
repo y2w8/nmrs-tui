@@ -1,13 +1,9 @@
-#[derive(Debug, Clone, PartialEq)]
-pub enum InputMode {
-    Normal,
-    Editing,
-}
-
+#[derive(Debug, Clone)]
 pub struct Input {
-    pub mode: InputMode,
+    /// Input value
     pub value: String,
-    pub hidden_password: bool,
+    /// Hide the value in asterisk
+    pub hidden: bool,
     /// Cursor postion x.
     pub cx: usize,
 }
@@ -15,9 +11,8 @@ pub struct Input {
 impl Input {
     pub fn new() -> Self {
         Self {
-            mode: InputMode::Normal,
             value: String::new(),
-            hidden_password: true,
+            hidden: true,
             cx: 0,
         }
     }
@@ -73,9 +68,5 @@ impl Input {
 
     fn clamp_cursor(&self, new_cursor_pos: usize) -> usize {
         new_cursor_pos.clamp(0, self.value.chars().count())
-    }
-
-    pub const fn reset_cursor(&mut self) {
-        self.cx = 0;
     }
 }

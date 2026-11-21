@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::ui::{
     popup::PopupConfig,
-    table::{AvailableNetworkColumnKind, DeviceColumnKind, KnownNetworkColumnKind, TableConfig},
+    tabs::{DeviceColumnKind, NetworkColumnKind, TableConfig},
     toast::ToastConfig,
 };
 
@@ -15,7 +15,7 @@ pub mod list;
 pub mod margin;
 pub mod popup;
 pub mod style_config;
-pub mod table;
+pub mod tabs;
 pub mod toast;
 
 #[derive(Deserialize, Serialize)]
@@ -23,8 +23,8 @@ pub struct Ui {
     pub layout: LayoutConfig,
 
     // Tables
-    pub known_networks: TableConfig<KnownNetworkColumnKind>,
-    pub available_networks: TableConfig<AvailableNetworkColumnKind>,
+    pub known_networks: TableConfig<NetworkColumnKind>,
+    pub available_networks: TableConfig<NetworkColumnKind>,
     pub devices: TableConfig<DeviceColumnKind>,
 
     // Popups

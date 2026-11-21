@@ -5,9 +5,12 @@ use ratatui::{
     widgets::Paragraph,
 };
 
-use crate::app::{Focus, Popups, Tabs};
+use crate::{
+    app::Focus,
+    ui::{popup::Popups, tabs::Tabs},
+};
 
-pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
+pub fn draw(f: &mut Frame, area: Rect, focus: &Focus) {
     let help_msg = match focus {
         Focus::Tab(Tabs::KnownNetworks) => {
             "k,  Up | j,  Down | 󱁐  or ↵  Dis/connect | d Forget | t Autoconnect | r Scan | ⇄ Nav"
@@ -16,7 +19,7 @@ pub fn draw(f: &mut Frame, area: Rect, focus: Focus) {
             "k,  Up | j,  Down | 󱁐  or ↵  Connect | r Scan | ⇄ Nav"
         }
         Focus::Tab(Tabs::Devices) => "r Scan | o Toggle Power | a Toggle Airplane | ⇄ Nav",
-        Focus::Popup(Popups::Password) => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
+        Focus::Popup(Popups::Password(_, _)) => "↵  Apply | ⇄ Hide/Show password | 󱊷  Discard",
     };
 
     f.render_widget(
